@@ -3,6 +3,7 @@
 	email = acabreragnz@gmail.com
 [push]
 	default = simple
+	followTags = true
 [pull]
 	rebase = true
 	ff = only
@@ -17,3 +18,9 @@
 	ff = false
 [grep]
 	lineNumber = true
+[rerere]
+	enabled = true
+[rebase]
+	autoStash = true
+[help]
+	autoCorrect = prompt
