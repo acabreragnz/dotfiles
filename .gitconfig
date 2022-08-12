@@ -1,0 +1,19 @@
+[user]
+	name = Toni Cabrera
+	email = acabreragnz@gmail.com
+[push]
+	default = simple
+[pull]
+	rebase = true
+	ff = only
+[fetch]
+	prune = true
+[core]
+	pager = less -x4
+	editor = code -w
+[init]
+	defaultBranch = main
+[merge]
+	ff = false
+[grep]
+	lineNumber = true
