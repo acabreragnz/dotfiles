@@ -1,16 +1,13 @@
 #!/bin/sh
 
 # update the system
-sudo apt update && sudo apt upgrade
+sudo apt update && sudo apt upgrade -y
 
 # install git
 sudo apt install -y git
 
-# install tig
-sudo apt install -y tig
-
 # install curl
-sudo apt install -y curl 
+sudo apt install -y curl
 
 # install zsh and oh my zsh
 sudo apt install -y zsh
@@ -21,20 +18,40 @@ git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-m
 git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
 
 # fonts for zsh theme
-sudo apt install fonts-powerline
+sudo apt install -y fonts-powerline
 
 # install nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
 
 \. "$HOME/.nvm/nvm.sh"
 
-# install last lts
+# install latest lts version of node
 nvm install --lts
 nvm alias default node
-
 
 export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
+# install github cli
+sudo mkdir -p -m 755 /etc/apt/keyrings && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+&& sudo apt update \
+&& sudo apt install gh -y
 
+# install gnome tweaks
+sudo apt install gnome-tweaks -y
+
+# For VSCode, Warp, and Chrome, which are more prone to download link changes, handle them separately
+# Download and install Warp
+wget https://app.warp.dev/download?package=deb -O warp.deb && sudo dpkg -i warp.deb && rm warp.deb
+
+# Download and install VSCode
+wget https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64 -O vscode.deb && sudo dpkg -i vscode.deb && rm vscode.deb
+
+# Download and install Google Chrome
+wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O chrome.deb && sudo dpkg -i chrome.deb && rm chrome.deb
+
+# Fix possible missing dependencies after installation
+sudo apt install -f -y
