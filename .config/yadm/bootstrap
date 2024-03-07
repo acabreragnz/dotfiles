@@ -15,7 +15,26 @@ sh -c "$(wget -O- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools
 
 # install oh my zsh plugins
 git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
-git clone https://github.com/zsh-users/zsh-syntax-highlighting.git ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-syntax-highlighting
+
+
+# Definir la ubicación del directorio de plugins de oh-my-zsh
+OH_MY_ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
+
+# Clonar el repositorio zsh-syntax-highlighting si aún no está instalado
+if [ ! -d "${OH_MY_ZSH_CUSTOM}/zsh-syntax-highlighting" ]; then
+  git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "${OH_MY_ZSH_CUSTOM}/zsh-syntax-highlighting"
+  echo "Plugin zsh-syntax-highlighting clonado correctamente."
+
+  # Añadir zsh-syntax-highlighting a la lista de plugins en .zshrc si aún no está
+  if ! grep -q "zsh-syntax-highlighting" ~/.zshrc; then
+    sed -i '' '/^plugins=(/ s/$/ zsh-syntax-highlighting)/' ~/.zshrc
+    echo "Plugin zsh-syntax-highlighting añadido al archivo .zshrc."
+  fi
+else
+  echo "El plugin zsh-syntax-highlighting ya está instalado."
+fi
+
+echo "Por favor, reinicia tu terminal o abre una nueva pestaña para aplicar los cambios."
 
 # fonts for zsh theme
 sudo apt install -y fonts-powerline
