@@ -13,26 +13,39 @@ sudo apt install -y curl
 sudo apt install -y zsh
 sh -c "$(wget -O- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
-# install oh my zsh plugins
-git clone https://github.com/zsh-users/zsh-autosuggestions ${ZSH_CUSTOM:-~/.oh-my-zsh/custom}/plugins/zsh-autosuggestions
-
-
 # Definir la ubicación del directorio de plugins de oh-my-zsh
 OH_MY_ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
 
-# Clonar el repositorio zsh-syntax-highlighting si aún no está instalado
-if [ ! -d "${OH_MY_ZSH_CUSTOM}/zsh-syntax-highlighting" ]; then
-  git clone https://github.com/zsh-users/zsh-syntax-highlighting.git "${OH_MY_ZSH_CUSTOM}/zsh-syntax-highlighting"
-  echo "Plugin zsh-syntax-highlighting clonado correctamente."
+# Función para instalar o reinstalar un plugin
+install_plugin() {
+  local plugin_name="$1"
+  local git_repo="$2"
+  local plugin_dir="${OH_MY_ZSH_CUSTOM}/${plugin_name}"
 
-  # Añadir zsh-syntax-highlighting a la lista de plugins en .zshrc si aún no está
-  if ! grep -q "zsh-syntax-highlighting" ~/.zshrc; then
-    sed -i '' '/^plugins=(/ s/$/ zsh-syntax-highlighting)/' ~/.zshrc
-    echo "Plugin zsh-syntax-highlighting añadido al archivo .zshrc."
+  # Verificar si el directorio del plugin ya existe
+  if [ -d "$plugin_dir" ]; then
+    echo "El plugin ${plugin_name} ya está instalado. Reinstalándolo."
+    rm -rf "$plugin_dir"
   fi
-else
-  echo "El plugin zsh-syntax-highlighting ya está instalado."
-fi
+
+  # Clonar el repositorio del plugin
+  git clone "$git_repo" "$plugin_dir"
+  echo "Plugin ${plugin_name} clonado correctamente."
+
+  # Añadir el plugin a la lista de plugins en .zshrc si aún no está
+  if ! grep -q "$plugin_name" ~/.zshrc; then
+    sed -i "/^plugins=(/ s/$/ $plugin_name)/" ~/.zshrc
+    echo "Plugin ${plugin_name} añadido al archivo .zshrc."
+  else
+    echo "Plugin ${plugin_name} ya presente en .zshrc."
+  fi
+}
+
+# Instalar o reinstalar zsh-syntax-highlighting
+install_plugin "zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-syntax-highlighting.git"
+
+# Instalar o reinstalar zsh-autosuggestions
+install_plugin "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions.git"
 
 echo "Por favor, reinicia tu terminal o abre una nueva pestaña para aplicar los cambios."
 
