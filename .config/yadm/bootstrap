@@ -1,17 +1,15 @@
 #!/bin/sh
 
-# update the system
+# Actualizar el sistema
 sudo apt update && sudo apt upgrade -y
 
-# install git
-sudo apt install -y git
+# Instalar paquetes esenciales
+sudo apt install -y git curl zsh fonts-powerline gnome-tweaks
 
-# install curl
-sudo apt install -y curl
-
-# install zsh and oh my zsh
-sudo apt install -y zsh
-sh -c "$(wget -O- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
+# Instalar oh-my-zsh de manera no interactiva
+if [ ! -d "$HOME/.oh-my-zsh" ]; then
+    RUNZSH=no sh -c "$(wget -O- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+fi
 
 # Definir la ubicación del directorio de plugins de oh-my-zsh
 OH_MY_ZSH_CUSTOM="${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins"
@@ -22,63 +20,69 @@ install_plugin() {
   local git_repo="$2"
   local plugin_dir="${OH_MY_ZSH_CUSTOM}/${plugin_name}"
 
-  # Verificar si el directorio del plugin ya existe
   if [ -d "$plugin_dir" ]; then
     echo "El plugin ${plugin_name} ya está instalado. Reinstalándolo."
     rm -rf "$plugin_dir"
   fi
 
-  # Clonar el repositorio del plugin
   git clone "$git_repo" "$plugin_dir"
   echo "Plugin ${plugin_name} clonado correctamente."
 }
 
-# Instalar o reinstalar zsh-syntax-highlighting
+# Instalar plugins zsh
 install_plugin "zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-syntax-highlighting.git"
-
-# Instalar o reinstalar zsh-autosuggestions
 install_plugin "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions.git"
 
-# Reemplazar la lista de plugins en .zshrc, manteniendo "git" y agregando nuestros plugins
+# Reemplazar la lista de plugins en .zshrc
 sed -i "/^plugins=(/c\plugins=(git zsh-syntax-highlighting zsh-autosuggestions)" ~/.zshrc
 
-echo "Por favor, reinicia tu terminal o abre una nueva pestaña para aplicar los cambios."
+echo "Instalación de ZSH y plugins completada. Por favor, reinicia tu terminal."
 
-# fonts for zsh theme
-sudo apt install -y fonts-powerline
-
-# install nvm
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
-
-\. "$HOME/.nvm/nvm.sh"
-
-# install latest lts version of node
-nvm install --lts
-nvm alias default node
-
+# Instalar NVM, Node.js LTS y configurar el entorno NVM
 export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+if [ ! -d "$NVM_DIR" ]; then
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+  \. "$NVM_DIR/nvm.sh"
+  nvm install --lts
+  nvm alias default node
+  echo "NVM y Node.js LTS instalados."
+fi
 
-# install github cli
-sudo mkdir -p -m 755 /etc/apt/keyrings && wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
-&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
-&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
-&& sudo apt update \
-&& sudo apt install gh -y
+# Instalar la CLI de GitHub si no está ya instalada
+if ! command -v gh >/dev/null 2>&1; then
+  sudo mkdir -p -m 755 /etc/apt/keyrings
+  wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
+  sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+  sudo apt update && sudo apt install gh -y
+  echo "GitHub CLI instalada."
+fi
 
-# install gnome tweaks
-sudo apt install gnome-tweaks -y
+# Descargar e instalar aplicaciones de terceros solo si no están ya instaladas
+check_and_install_app() {
+  local app_name="$1"
+  local app_command="$2"
+  local download_url="$3"
+  local deb_name="$4"
 
-# For VSCode, Warp, and Chrome, which are more prone to download link changes, handle them separately
-# Download and install Warp
-wget https://app.warp.dev/download?package=deb -O warp.deb && sudo dpkg -i warp.deb && rm warp.deb
+  if ! command -v "$app_command" >/dev/null 2>&1; then
+    wget "$download_url" -O "$deb_name" && sudo dpkg -i "$deb_name" && rm "$deb_name"
+    echo "$app_name instalado."
+  else
+    echo "$app_name ya está instalado."
+  fi
+}
 
-# Download and install VSCode
-wget https://code.visualstudio.com/sha/download?build=stable&os=linux-deb-x64 -O vscode.deb && sudo dpkg -i vscode.deb && rm vscode.deb
+check_and_install_app "Warp" "warp-cli" "https://api.warp.dev/download/deb" "warp.deb"
+check_and_install_app "VSCode" "code" "https://update.code.visualstudio.com/latest/linux-deb-x64/stable" "vscode.deb"
+check_and_install_app "Google Chrome" "google-chrome" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb" "chrome.deb"
 
-# Download and install Google Chrome
-wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O chrome.deb && sudo dpkg -i chrome.deb && rm chrome.deb
-
-# Fix possible missing dependencies after installation
+# Corregir posibles dependencias faltantes después de la instalación
 sudo apt install -f -y
+
+# Limpiar archivos temporales y la caché de apt
+sudo apt autoremove -y
+sudo apt autoclean -y
+echo "Limpieza de sistema completada."
+
+echo "Instalación completada."
