@@ -31,14 +31,6 @@ install_plugin() {
   # Clonar el repositorio del plugin
   git clone "$git_repo" "$plugin_dir"
   echo "Plugin ${plugin_name} clonado correctamente."
-
-  # Añadir el plugin a la lista de plugins en .zshrc si aún no está
-  if ! grep -q "$plugin_name" ~/.zshrc; then
-    sed -i "/^plugins=(/ s/$/ $plugin_name)/" ~/.zshrc
-    echo "Plugin ${plugin_name} añadido al archivo .zshrc."
-  else
-    echo "Plugin ${plugin_name} ya presente en .zshrc."
-  fi
 }
 
 # Instalar o reinstalar zsh-syntax-highlighting
@@ -46,6 +38,9 @@ install_plugin "zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-synta
 
 # Instalar o reinstalar zsh-autosuggestions
 install_plugin "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions.git"
+
+# Reemplazar la lista de plugins en .zshrc, manteniendo "git" y agregando nuestros plugins
+sed -i "/^plugins=(/c\plugins=(git zsh-syntax-highlighting zsh-autosuggestions)" ~/.zshrc
 
 echo "Por favor, reinicia tu terminal o abre una nueva pestaña para aplicar los cambios."
 
