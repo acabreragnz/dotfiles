@@ -77,6 +77,12 @@ check_and_install_app "Warp" "warp-cli" "https://api.warp.dev/download/deb" "war
 check_and_install_app "VSCode" "code" "https://update.code.visualstudio.com/latest/linux-deb-x64/stable" "vscode.deb"
 check_and_install_app "Google Chrome" "google-chrome" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb" "chrome.deb"
 
+# Create custom scripts using naitilus
+mkdir -p "$HOME/.local/share/nautilus/scripts"
+cp -r scripts/* "$HOME/.local/share/nautilus/scripts"
+chmod +x "$HOME/.local/share/nautilus/scripts/"*
+nautilus -q
+
 # Corregir posibles dependencias faltantes después de la instalación
 sudo apt install -f -y
 
