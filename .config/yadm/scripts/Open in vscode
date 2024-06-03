@@ -1,0 +1,5 @@
+#!/bin/bash
+
+# Get the current route without the file://
+current_path=$(echo "$NAUTILUS_SCRIPT_SELECTED_URIS" | sed 's/^file:\/\///')
+code $current_path
