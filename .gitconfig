@@ -25,4 +25,5 @@
 [help]
 	autoCorrect = prompt
 [alias]
-	update = "!f() { if [ \"$#\" -ne 1 ]; then echo \"Error: the base branch is required\"; return 1; fi; git fetch origin && git rebase origin/\"$1\"; }; f"
+	update = "!f() { branch=\"${1:-main}\"; git fetch origin && git rebase origin/\"$branch\"; }; f"
+	ls = log --oneline

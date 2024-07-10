@@ -115,6 +115,15 @@ function gacp() {
 }
 
 
+function git_alias() {
+    if [ "$#" -ne 2 ]; then
+        echo "Usage: git_alias <alias_name> <command>"
+        return 1
+    fi
+    git config --global alias."$1" "$2"
+    echo "Alias added: $1 -> $2"
+}
+
 ### misc
 
 export NVM_DIR="$HOME/.nvm"
