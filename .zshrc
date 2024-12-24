@@ -72,7 +72,7 @@ DEFAULT_USER=acabreragnz
 # Custom plugins may be added to $ZSH_CUSTOM/plugins/
 # Example format: plugins=(rails git textmate ruby lighthouse)
 # Add wisely, as too many plugins slow down shell startup.
-plugins=(git zsh-autosuggestions zsh-syntax-highlighting npm z)
+plugins=(git zsh-autosuggestions zsh-syntax-highlighting npm z zsh-npm-scripts-autocomplete)
 
 source $ZSH/oh-my-zsh.sh
 
@@ -104,8 +104,14 @@ source $ZSH/oh-my-zsh.sh
 bindkey '^H' backward-kill-word
 
 ### aliases
+alias gcom="git checkout -m"
 
+alias npm=pnpm
+alias npx='pnpm exec'
+alias pn=pnpm
+alias pnx='pnpm exec'
 
+alias pnr="cat package.json | jq -r '.scripts | keys[]' | fzf | xargs -I {} npm run {}"
 
 ### functions
 function gacp() {
@@ -152,3 +158,16 @@ add-zsh-hook chpwd load-nvmrc
 load-nvmrc
 
 PATH=~/.console-ninja/.bin:$PATH
+
+alias oldnpm="$(nvm which current | sed 's/\/node$/\/npm/')"
+alias npmold="$(nvm which current | sed 's/\/node$/\/npm/')"
+alias npxold="$(nvm which current | sed 's/\/node$/\/npx/')"
+
+
+# pnpm
+export PNPM_HOME="/home/acabreragnz/.local/share/pnpm"
+case ":$PATH:" in
+  *":$PNPM_HOME:"*) ;;
+  *) export PATH="$PNPM_HOME:$PATH" ;;
+esac
+# pnpm end
