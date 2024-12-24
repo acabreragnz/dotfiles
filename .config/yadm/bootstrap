@@ -32,6 +32,7 @@ install_plugin() {
 # Instalar plugins zsh
 install_plugin "zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-syntax-highlighting.git"
 install_plugin "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions.git"
+install_plugin "zsh-npm-scripts-autocomplete" "https://github.com/grigorii-zander/zsh-npm-scripts-autocomplete.git"
 
 yadm checkout .zshrc
 source ~/.zshrc
@@ -56,6 +57,55 @@ if ! command -v gh >/dev/null 2>&1; then
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
   sudo apt update && sudo apt install gh -y
   echo "GitHub CLI instalada."
+fi
+
+# Instalar AutoKey si no está instalado
+if ! command -v autokey-gtk >/dev/null 2>&1; then
+    echo "Instalando AutoKey..."
+    # Hacer backup temporal de la configuración existente si existe
+    if [ -d "$HOME/.config/autokey" ]; then
+        mv "$HOME/.config/autokey" "$HOME/.config/autokey.temp"
+    fi
+    
+    # Instalar AutoKey
+    sudo apt install -y autokey-gtk
+    
+    # Restaurar la configuración y limpiar
+    if [ -d "$HOME/.config/autokey.temp" ]; then
+        rm -rf "$HOME/.config/autokey"
+        mv "$HOME/.config/autokey.temp" "$HOME/.config/autokey"
+    fi
+    
+    # Asegurarse de que los permisos están correctos
+    chmod -R u+rw "$HOME/.config/autokey"
+    
+    # Iniciar AutoKey en segundo plano
+    nohup autokey-gtk >/dev/null 2>&1 &
+    # Configurar autostart para AutoKey
+    mkdir -p "$HOME/.config/autostart"
+    cat > "$HOME/.config/autostart/autokey.desktop" << EOL
+[Desktop Entry]
+Type=Application
+Name=AutoKey
+Exec=autokey-gtk
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+EOL
+    echo "AutoKey instalado, configurado y añadido al inicio automático."
+else
+    # Asegurar que autostart está configurado incluso si AutoKey ya estaba instalado
+    mkdir -p "$HOME/.config/autostart"
+    cat > "$HOME/.config/autostart/autokey.desktop" << EOL
+[Desktop Entry]
+Type=Application
+Name=AutoKey
+Exec=autokey-gtk
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+EOL
+    echo "AutoKey ya está instalado. Configuración de inicio automático actualizada."
 fi
 
 # Descargar e instalar aplicaciones de terceros solo si no están ya instaladas
