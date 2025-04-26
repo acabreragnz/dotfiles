@@ -1,0 +1,32 @@
+{
+    "type": "phrase",
+    "description": "Fake Valid Card",
+    "modes": [
+        1
+    ],
+    "usageCount": 14,
+    "prompt": false,
+    "omitTrigger": false,
+    "matchCase": true,
+    "showInTrayMenu": true,
+    "abbreviation": {
+        "abbreviations": [
+            "acacard",
+            "42"
+        ],
+        "backspace": true,
+        "ignoreCase": true,
+        "immediate": false,
+        "triggerInside": false,
+        "wordChars": "[^ \\n]"
+    },
+    "hotkey": {
+        "modifiers": [],
+        "hotKey": null
+    },
+    "filter": {
+        "regex": null,
+        "isRecursive": false
+    },
+    "sendMode": "kb"
+}

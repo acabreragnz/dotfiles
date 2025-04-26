@@ -1,23 +1,23 @@
 {
     "type": "phrase",
-    "description": "Docker compose",
+    "description": "Docker compose pest",
     "modes": [
         1
     ],
-    "usageCount": 2,
+    "usageCount": 15,
     "prompt": false,
     "omitTrigger": false,
-    "matchCase": false,
+    "matchCase": true,
     "showInTrayMenu": false,
     "abbreviation": {
         "abbreviations": [
-            "dc"
+            "dcp"
         ],
         "backspace": true,
-        "ignoreCase": false,
-        "immediate": true,
+        "ignoreCase": true,
+        "immediate": false,
         "triggerInside": false,
-        "wordChars": "[\\w]"
+        "wordChars": "[^\\t]"
     },
     "hotkey": {
         "modifiers": [],

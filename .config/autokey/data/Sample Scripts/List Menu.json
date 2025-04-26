@@ -1,9 +1,9 @@
 {
     "type": "script",
-    "description": "Selection Test",
+    "description": "List Menu",
     "store": {},
     "modes": [],
-    "usageCount": 0,
+    "usageCount": 1,
     "prompt": false,
     "omitTrigger": false,
     "showInTrayMenu": false,

@@ -1,17 +1,21 @@
 {
-    "type": "script",
-    "description": "List Menu",
-    "store": {},
-    "modes": [],
-    "usageCount": 0,
+    "type": "phrase",
+    "description": "1. Urgente",
+    "modes": [
+        1
+    ],
+    "usageCount": 29,
     "prompt": false,
     "omitTrigger": false,
+    "matchCase": false,
     "showInTrayMenu": false,
     "abbreviation": {
-        "abbreviations": [],
+        "abbreviations": [
+            "p0"
+        ],
         "backspace": true,
-        "ignoreCase": false,
-        "immediate": false,
+        "ignoreCase": true,
+        "immediate": true,
         "triggerInside": false,
         "wordChars": "[\\w]"
     },
@@ -22,5 +26,6 @@
     "filter": {
         "regex": null,
         "isRecursive": false
-    }
+    },
+    "sendMode": "kb"
 }

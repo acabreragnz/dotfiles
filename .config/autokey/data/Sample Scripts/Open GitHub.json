@@ -1,21 +1,21 @@
 {
-    "type": "phrase",
-    "description": "Fake Valid Card",
+    "type": "script",
+    "description": "Open GitHub",
+    "store": {},
     "modes": [
         1
     ],
-    "usageCount": 0,
-    "prompt": false,
+    "usageCount": 7,
+    "prompt": true,
     "omitTrigger": false,
-    "matchCase": false,
-    "showInTrayMenu": false,
+    "showInTrayMenu": true,
     "abbreviation": {
         "abbreviations": [
-            "acacard"
+            "gh"
         ],
         "backspace": true,
         "ignoreCase": true,
-        "immediate": true,
+        "immediate": false,
         "triggerInside": false,
         "wordChars": "[\\w]"
     },
@@ -26,6 +26,5 @@
     "filter": {
         "regex": null,
         "isRecursive": false
-    },
-    "sendMode": "kb"
+    }
 }
