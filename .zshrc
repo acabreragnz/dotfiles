@@ -107,11 +107,11 @@ bindkey '^H' backward-kill-word
 alias gcom="git checkout -m"
 
 alias npm=pnpm
-alias npx='pnpm exec'
 alias pn=pnpm
-alias pnx='pnpm exec'
+alias pnx='pnpm dlx'
 
 alias pnr="cat package.json | jq -r '.scripts | keys[]' | fzf | xargs -I {} npm run {}"
+alias zshrc="code ~/.zshrc"
 
 ### functions
 function gacp() {
@@ -120,7 +120,6 @@ function gacp() {
   git push
 }
 
-
 function git_alias() {
     if [ "$#" -ne 2 ]; then
         echo "Usage: git_alias <alias_name> <command>"
@@ -128,6 +127,10 @@ function git_alias() {
     fi
     git config --global alias."$1" "$2"
     echo "Alias added: $1 -> $2"
+}
+
+dcpest() {
+    docker compose run --rm php vendor/bin/pest "$@" 2>&1 | sed 's|/var/www/html/||g'
 }
 
 ### misc
@@ -160,8 +163,8 @@ load-nvmrc
 PATH=~/.console-ninja/.bin:$PATH
 
 alias oldnpm="$(nvm which current | sed 's/\/node$/\/npm/')"
-alias npmold="$(nvm which current | sed 's/\/node$/\/npm/')"
-alias npxold="$(nvm which current | sed 's/\/node$/\/npx/')"
+# alias npmold="$(nvm which current | sed 's/\/node$/\/npm/')"
+# alias npxold="$(nvm which current | sed 's/\/node$/\/npx/')"
 
 
 # pnpm
@@ -171,3 +174,4 @@ case ":$PATH:" in
   *) export PATH="$PNPM_HOME:$PATH" ;;
 esac
 # pnpm end
+export PATH="$HOME/.local/bin:$PATH"

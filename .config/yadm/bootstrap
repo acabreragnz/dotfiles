@@ -49,6 +49,10 @@ if [ ! -d "$NVM_DIR" ]; then
   echo "NVM y Node.js LTS instalados."
 fi
 
+# Instalar PHP latest version
+echo "Instalando PHP 8.4..."
+sudo apt install php8.4 -y
+
 # Instalar la CLI de GitHub si no está ya instalada
 if ! command -v gh >/dev/null 2>&1; then
   sudo mkdir -p -m 755 /etc/apt/keyrings

@@ -2,7 +2,7 @@
 	name = Toni Cabrera
 	email = acabreragnz@gmail.com
 [push]
-	default = simple
+	default = current
 	followTags = true
 	autoSetupRemote = true
 [pull]
@@ -29,3 +29,8 @@
 [alias]
   update = "!f() { branch=\"${1:-main}\"; interactive=\"${2:-}\"; git fetch origin && git rebase $interactive origin/\"$branch\"; }; f"
 	ls = log --oneline
+[filter "lfs"]
+	process = git-lfs filter-process
+	required = true
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
