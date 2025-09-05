@@ -49,9 +49,20 @@ if [ ! -d "$NVM_DIR" ]; then
   echo "NVM y Node.js LTS instalados."
 fi
 
-# Instalar PHP latest version
-echo "Instalando PHP 8.4..."
-sudo apt install php8.4 -y
+echo "Instalando PHP 8.4 y extensiones requeridas..."
+sudo apt install -y php8.4 php8.4-mbstring php8.4-xml php8.4-curl php8.4-zip php8.4-bcmath php8.4-mysql php8.4-sqlite3
+
+# Instalar Composer globalmente
+if ! command -v composer &> /dev/null
+then
+  echo "Composer no encontrado. Instalando Composer..."
+  php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+  sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+  php -r "unlink('composer-setup.php');"
+  echo "Composer instalado correctamente."
+else
+  echo "Composer ya estaba instalado."
+fi
 
 # Instalar la CLI de GitHub si no está ya instalada
 if ! command -v gh >/dev/null 2>&1; then
@@ -140,6 +151,54 @@ nautilus -q
 
 # Corregir posibles dependencias faltantes después de la instalación
 sudo apt install -f -y
+
+# Configurar editor predeterminado para archivos de código
+echo "Configurando editor predeterminado para archivos de código..."
+
+# Lista de tipos MIME para archivos de código
+MIME_TYPES=(
+  "text/plain"
+  "text/x-python"
+  "text/javascript"
+  "text/x-java"
+  "text/x-c"
+  "text/x-c++"
+  "application/json"
+  "text/x-markdown"
+  "text/html"
+  "text/css"
+  "application/x-yaml"
+  "text/x-sh"
+  "application/x-shellscript"
+  "text/x-php"
+  "application/x-php"
+  "text/x-ruby"
+  "text/x-go"
+  "text/x-rust"
+  "text/typescript"
+  "application/typescript"
+)
+
+# Función para configurar MIME types
+configure_mime_types() {
+  local desktop_file="$1"
+  local editor_name="$2"
+  
+  echo "Configurando $editor_name como editor predeterminado..."
+  for mime_type in "${MIME_TYPES[@]}"; do
+    xdg-mime default "$desktop_file" "$mime_type"
+  done
+  echo "$editor_name configurado como editor predeterminado para archivos de código."
+}
+
+# Detectar y configurar el mejor editor disponible
+if command -v cursor >/dev/null 2>&1; then
+  configure_mime_types "cursor.desktop" "Cursor"
+elif command -v code >/dev/null 2>&1; then
+  configure_mime_types "code.desktop" "VSCode"
+else
+  echo "Ni Cursor ni VSCode están instalados. Manteniendo editor predeterminado del sistema."
+fi
 
 # Limpiar archivos temporales y la caché de apt
 sudo apt autoremove -y
