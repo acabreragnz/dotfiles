@@ -160,6 +160,8 @@ MIME_TYPES=(
   "text/plain"
   "text/x-python"
   "text/javascript"
+  "application/javascript"
+  "application/x-javascript"
   "text/x-java"
   "text/x-c"
   "text/x-c++"
@@ -173,10 +175,15 @@ MIME_TYPES=(
   "text/x-php"
   "application/x-php"
   "text/x-ruby"
+  "application/x-ruby"
   "text/x-go"
   "text/x-rust"
+  "text/x-dockerfile"
   "text/typescript"
   "application/typescript"
+  "text/x-typescript"
+  "text/x-tsx"
+  "text/vnd.trolltech.linguist"
 )
 
 # Función para configurar MIME types
