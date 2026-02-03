@@ -104,14 +104,67 @@ source $ZSH/oh-my-zsh.sh
 bindkey '^H' backward-kill-word
 
 ### aliases
+# alias cc=claude  # Replaced with function below
 alias gcom="git checkout -m"
 
-alias npm=pnpm
+# Claude Code with tab naming
+# Usage: cc [name]
+# Note: Warp handles tab colors through its UI, not terminal escape sequences
+cc() {
+    local tab_name="$1"
+    
+    # Si no se proporciona nombre, usar el directorio
+    if [ -z "$tab_name" ]; then
+        tab_name="$(basename "$PWD")"
+    fi
+    
+    # Guardar el nombre del tab para uso persistente
+    export WARP_TAB_NAME="$tab_name"
+    
+    # Cambiar el título inmediatamente
+    echo -ne "\033]0;$tab_name\007"
+    
+    # Configurar función para mantener el título fijo (según docs de Warp)
+    set_warp_tab_name() {
+        if [ -n "$WARP_TAB_NAME" ]; then
+            echo -ne "\033]0;$WARP_TAB_NAME\007"
+        fi
+    }
+    
+    # Agregar a precmd_functions si no existe ya
+    if [[ ! " ${precmd_functions[*]} " =~ " set_warp_tab_name " ]]; then
+        precmd_functions+=(set_warp_tab_name)
+    fi
+    
+    # Ejecutar Claude SIN parámetros, solo con la variable de entorno
+    CLAUDE_TAB_NAME="$tab_name" claude
+}
+
+# alias npm=pnpm
 alias pn=pnpm
 alias pnx='pnpm dlx'
 
 alias pnr="cat package.json | jq -r '.scripts | keys[]' | fzf | xargs -I {} npm run {}"
 alias zshrc="code ~/.zshrc"
+
+### Docker Compose aliases
+alias dc='docker compose'
+alias dcu='docker compose up'
+alias dcub='docker compose up --build'
+alias dcud='docker compose up -d'
+alias dcd='docker compose down'
+alias dcdv='docker compose down -v'
+alias dcps='docker compose ps'
+alias dcl='docker compose logs'
+alias dclf='docker compose logs -f'
+alias dcr='docker compose restart'
+alias dcrm='docker compose rm'
+alias dcp='docker compose pull'
+alias dcb='docker compose build'
+alias dcexec='docker compose exec'
+alias dcrun='docker compose run --rm'
+alias dcs='docker compose stop'
+alias dck='docker compose kill'
 
 ### functions
 function gacp() {
@@ -175,3 +228,21 @@ case ":$PATH:" in
 esac
 # pnpm end
 export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.config/composer/vendor/bin:$PATH"
+export DOCKER_HOST=unix:///var/run/docker.sock
+alias cursor="cursor --no-sandbox"
+
+# Android Studio y React Native configuration
+export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+export ANDROID_HOME=$HOME/Android/Sdk
+export ANDROID_SDK_ROOT=$HOME/Android/Sdk
+export ANDROID_STUDIO=/opt/android-studio
+export PATH=$PATH:$ANDROID_HOME/emulator
+export PATH=$PATH:$ANDROID_HOME/platform-tools
+export PATH=$PATH:$ANDROID_HOME/build-tools
+export DOTNET_ROOT=$HOME/.dotnet
+export PATH=$PATH:$HOME/.dotnet:$HOME/.dotnet/tools
+eval "$(direnv hook zsh)"
+
+# opencode
+export PATH=/home/acabreragnz/.opencode/bin:$PATH
