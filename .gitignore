@@ -1,0 +1,27 @@
+# Claude Code - archivos sensibles/temporales
+.claude/.credentials.json
+.claude.json
+.claude/history.jsonl
+.claude/cache/
+.claude/debug/
+.claude/logs/
+.claude/session-env/
+.claude/telemetry/
+.claude/todos/
+.claude/projects/
+.claude/backups/
+.claude/shell-snapshots/
+.claude/paste-cache/
+.claude/file-history/
+.claude/plans/
+.claude/statsig/
+.claude/ide/
+.claude/stats-cache.json
+.claude/.update.lock
+.claude/downloads/
+.claude/.anthropic/
+.claude/agents/
+.claude/commands/
+.claude/hooks/
+.claude/plugins/
+.claude/tasks/

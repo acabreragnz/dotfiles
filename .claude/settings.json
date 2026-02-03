@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Tool:WebSearch",
+      "Tool:WebFetch"
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "~/.claude/statusline.sh",
+    "padding": 0
+  },
+  "enabledPlugins": {
+    "playwright-cli@playwright-cli": true,
+    "document-skills@anthropic-agent-skills": true
+  },
+  "alwaysThinkingEnabled": true
+}
