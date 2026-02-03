@@ -207,6 +207,13 @@ else
   echo "Ni Cursor ni VSCode están instalados. Manteniendo editor predeterminado del sistema."
 fi
 
+# Restaurar configuración de GNOME (dconf)
+if [ -f "$HOME/.config/dconf/user.conf" ]; then
+  echo "Restaurando configuración de GNOME (tema, atajos, dock, etc.)..."
+  dconf load / < "$HOME/.config/dconf/user.conf"
+  echo "Configuración de GNOME restaurada."
+fi
+
 # Limpiar archivos temporales y la caché de apt
 sudo apt autoremove -y
 sudo apt autoclean -y
