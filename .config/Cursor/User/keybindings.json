@@ -1,0 +1,330 @@
+[
+  {
+    "key": "ctrl+e",
+    "command": "-workbench.action.quickOpen"
+  },
+  {
+    "key": "ctrl+[Minus]",
+    "command": "workbench.action.zoomOut"
+  },
+  {
+    "key": "alt+]",
+    "command": "cursorBottom",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "alt+[",
+    "command": "cursorTop",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "ctrl+shift+alt+enter",
+    "command": "github.copilot.generate",
+    "when": "editorTextFocus && github.copilot.activated"
+  },
+  {
+    "key": "ctrl+enter",
+    "command": "-github.copilot.generate",
+    "when": "editorTextFocus && github.copilot.activated"
+  },
+  {
+    "key": "ctrl+enter",
+    "command": "extension.insertSemicolonWithNewLine",
+    "when": "editorTextFocus && editorLangId =~ /php/",
+  },
+  {
+    "key": "ctrl+shift+/",
+    "command": "-extension.insertSemicolonWithNewLine",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "ctrl+/",
+    "command": "-extension.insertSemicolon",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "alt+a alt+a",
+    "command": "jump-extension.select-to-the-start-of-a-word",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "alt+q alt+e",
+    "command": "-jump-extension.select-to-the-start-of-a-word",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "ctrl+shift+delete",
+    "command": "deleteAllRight"
+  },
+  {
+    "key": "ctrl+shift+i",
+    "command": "workbench.action.gotoMethod",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "ctrl+shift+l",
+    "command": "-extension.log",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "shift+insert",
+    "command": "-editor.action.clipboardPasteAction"
+  },
+  {
+    "key": "shift+ctrl+a",
+    "command": "copilot-labs.use-brush-picker",
+    "when": "editorTextFocus && github.copilot.activated"
+  },
+  {
+    "key": "ctrl+alt+l",
+    "command": "-bookmarks.jumpToNext",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "ctrl+c",
+    "command": "-extension.vim_ctrl+c",
+    "when": "editorTextFocus && vim.active && vim.overrideCtrlC && vim.use<C-c> && !inDebugRepl"
+  },
+  // {
+  //   "key": "ctrl+8", // or any other key combo
+  //   "when": "editorTextFocus",
+  //   "command": "moveby.regex",
+  //   "args": {
+  //     "regex": " ",
+  //     "properties": [
+  //       "next",
+  //       "end"
+  //     ]
+  //   }
+  // },
+  // {
+  //   "key": "ctrl+m", // or any other key combo
+  //   "when": "editorTextFocus",
+  //   "command": "moveby.regex",
+  //   "args": {
+  //     "regex": "\\s",
+  //     "properties": [
+  //       "next",
+  //       "end"
+  //     ]
+  //   }
+  // },
+  {
+    "key": "ctrl+m", // or any other key combo
+    "when": "editorTextFocus",
+    "command": "moveby.regex",
+    "args": {
+      "ask": true,
+      "properties": [
+        "next",
+        "start"
+      ]
+    }
+  },
+  {
+    "key": "alt+right",
+    "command": "cursorEnd",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "end",
+    "command": "-cursorEnd",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "shift+alt+left",
+    "command": "cursorHomeSelect",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "shift+home",
+    "command": "-cursorHomeSelect",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "shift+alt+right",
+    "command": "-editor.action.smartSelect.expand",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "shift+alt+right",
+    "command": "cursorEndSelect",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "shift+end",
+    "command": "-cursorEndSelect",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "ctrl+enter",
+    "command": "-github.copilot.generate",
+    "when": "editorTextFocus && github.copilot.activated && !inInteractiveInput && !interactiveEditorFocused"
+  },
+  {
+    "key": "ctrl+e",
+    "command": "editor.action.selectToBracket"
+  },
+  {
+    "key": "end",
+    "command": "cursorLineEnd"
+  },
+  {
+    "key": "ctrl+enter",
+    "command": "-github.copilot.generate",
+    "when": "editorTextFocus && github.copilot.activated && !commentEditorFocused && !inInteractiveInput && !interactiveEditorFocused"
+  },
+  {
+    "key": "home",
+    "command": "cursorHome",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "home",
+    "command": "-cursorHome",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "alt+left",
+    "command": "cursorHome",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "ctrl+up",
+    "command": "space-block-text-jumper.jumpUp"
+  },
+  {
+    "key": "ctrl+down",
+    "command": "space-block-text-jumper.jumpDown"
+  },
+  {
+    "key": "alt+j",
+    "command": "cursorLeft",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "left",
+    "command": "-cursorLeft",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "left",
+    "command": "cursorLeft",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "alt+l",
+    "command": "cursorRight",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "alt+k",
+    "command": "cursorDown",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "alt+i",
+    "command": "cursorUp",
+    "when": "textInputFocus"
+  },
+  {
+    "key": "shift+alt+left",
+    "command": "-editor.action.smartSelect.shrink",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "ctrl+'",
+    "command": "editor.action.smartSelect.grow"
+  },
+  {
+    "key": "ctrl+;",
+    "command": "editor.action.smartSelect.shrink"
+  },
+  // {
+  //   "command": "runCommands",
+  //   "key": "alt+r", // whatever keybinding
+  //   "args": {
+  //     "commands": [
+  //       "editor.emmet.action.balanceOut",
+  //       "deleteRight",
+  //     ]
+  //   },
+  //   "when": "editorTextFocus"
+  // },
+  {
+    "command": "runCommands",
+    "key": "alt+r", // whatever keybinding
+    "args": {
+      "commands": [
+        "editor.emmet.action.balanceOut",
+        "deleteRight",
+        "editor.emmet.action.removeTag"
+      ]
+    },
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "tab",
+    "command": "-leaper.leap",
+    "when": "editorTextFocus && leaper.hasLineOfSight && leaper.inLeaperMode && !editorHasSelection && !editorTabMovesFocus && !suggestWidgetVisible"
+  },
+  {
+    "key": "ctrl+shift+i",
+    "command": "supermaven.addToChat",
+    "when": "editorTextFocus"
+  },
+  {
+    "key": "ctrl+shift+i",
+    "command": "-supermaven.addToChat"
+  },
+  {
+    "key": "ctrl+alt+w",
+    "command": "workbench.action.closeOtherEditors"
+  },
+  {
+    "key": "alt+2",
+    "command": "extension.jumptoscript"
+  },
+  {
+    "key": "alt+1",
+    "command": "extension.jumptotemplate"
+  },
+  {
+    "key": "alt+i",
+    "command": "editor.emmet.action.balanceIn"
+  },
+  {
+    "key": "alt+o",
+    "command": "editor.emmet.action.balanceOut"
+  },
+  {
+    "key": "alt+a",
+    "command": "editor.emmet.action.wrapWithAbbreviation"
+  },
+  {
+    "key": "alt+g",
+    "command": "git.openRepository",
+    "when": "!operationInProgress"
+  },
+  {
+    "key": "ctrl+enter",
+    "command": "-github.copilot.generate",
+    "when": "editorTextFocus && github.copilot.activated && !commentEditorFocused"
+  },
+  {
+    "key": "ctrl+l",
+    "command": "composerMode.chat"
+  },
+  {
+    "key": "ctrl+i",
+    "command": "composerMode.agent"
+},
+{
+    "key": "shift+enter",
+    "command": "workbench.action.terminal.sendSequence",
+    "args": {
+        "text": "\\\r\n"
+    },
+    "when": "terminalFocus"
+}
+]
