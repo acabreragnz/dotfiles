@@ -5,7 +5,7 @@ set -o pipefail  # Fallar en pipes si algún comando falla
 # ==========================================
 # Variables Globales
 # ==========================================
-TOTAL_STEPS=14
+TOTAL_STEPS=16
 CURRENT_STEP=0
 APT_UPDATED=false
 TEMP_FILES=()
@@ -197,6 +197,37 @@ if [ ! -d "$NVM_DIR" ]; then
   nvm alias default node
   log "SUCCESS" "NVM y Node.js LTS instalados"
 fi
+
+# ==========================================
+# SECCIÓN: pnpm
+# ==========================================
+step "Instalando pnpm"
+if ! command -v pnpm >/dev/null 2>&1; then
+  log "INFO" "Instalando pnpm..."
+  curl -fsSL https://get.pnpm.io/install.sh | sh -
+  log "SUCCESS" "pnpm instalado"
+else
+  log "INFO" "pnpm ya está instalado"
+fi
+
+# ==========================================
+# SECCIÓN: direnv (OPCIONAL - Deshabilitado)
+# ==========================================
+# direnv: Gestor automático de variables de entorno por directorio
+# Útil si necesitas cargar .envrc en proyectos con configuraciones específicas
+#
+# Para habilitar:
+# 1. Descomentar la instalación aquí
+# 2. Agregar a .zshrc: eval "$(direnv hook zsh)"
+#
+# step "Instalando direnv"
+# if ! command -v direnv >/dev/null 2>&1; then
+#   log "INFO" "Instalando direnv..."
+#   curl -sfL https://direnv.net/install.sh | bash
+#   log "SUCCESS" "direnv instalado en ~/.local/bin/direnv"
+# else
+#   log "INFO" "direnv ya está instalado"
+# fi
 
 # ==========================================
 # SECCIÓN: PHP
@@ -438,6 +469,34 @@ if [ -f "$HOME/.config/essential-snaps.txt" ]; then
   log "INFO" "Instalando snaps desde essential-snaps.txt..."
   cat "$HOME/.config/essential-snaps.txt" | grep -v '^#' | grep -v '^$' | xargs -L 1 sudo snap install
 fi
+
+# ==========================================
+# SECCIÓN: Webcam (Cheese)
+# ==========================================
+step "Instalando y verificando webcam"
+log "INFO" "Instalando Cheese para webcam..."
+ensure_apt_updated
+sudo apt install -y cheese v4l-utils
+
+# Verificar dispositivos de video disponibles
+log "INFO" "Detectando dispositivos de webcam..."
+if ls /dev/video* >/dev/null 2>&1; then
+  for device in /dev/video*; do
+    if v4l2-ctl --device="$device" --all 2>/dev/null | grep -q "Camera"; then
+      camera_name=$(v4l2-ctl --device="$device" --info 2>/dev/null | grep "Card type" | cut -d: -f2 | xargs)
+      log "INFO" "Webcam detectada en $device: $camera_name"
+
+      # Verificar específicamente Brio 500
+      if echo "$camera_name" | grep -qi "brio.*500"; then
+        log "SUCCESS" "Logitech Brio 500 detectada en $device"
+      fi
+    fi
+  done
+else
+  log "WARNING" "No se detectaron dispositivos de video en /dev/video*"
+fi
+
+log "SUCCESS" "Cheese instalado. Ejecuta 'cheese' para probar tu webcam Brio 500."
 
 # ==========================================
 # SECCIÓN: Limpieza del Sistema
