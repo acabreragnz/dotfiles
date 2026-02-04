@@ -5,7 +5,8 @@
   "permissions": {
     "allow": [
       "Tool:WebSearch",
-      "Tool:WebFetch"
+      "Tool:WebFetch",
+      "mcp__chrome-devtools__*"
     ],
     "defaultMode": "default"
   },
