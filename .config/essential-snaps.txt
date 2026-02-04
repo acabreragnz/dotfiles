@@ -1,0 +1,10 @@
+# Essential snaps to install on fresh Ubuntu setup
+# Install with: cat ~/.config/essential-snaps.txt | grep -v '^#' | xargs -L 1 sudo snap install
+
+slack
+telegram-desktop
+spotify
+vlc
+localsend
+firefox
+thunderbird
