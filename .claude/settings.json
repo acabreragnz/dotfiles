@@ -6,8 +6,10 @@
     "allow": [
       "Tool:WebSearch",
       "Tool:WebFetch"
-    ]
+    ],
+    "defaultMode": "default"
   },
+  "model": "sonnet",
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh",

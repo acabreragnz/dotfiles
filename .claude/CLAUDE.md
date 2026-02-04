@@ -1,0 +1,1 @@
+- Siempre que tengas que instalar herramientas nuevas en el sistema operativo usa context7 mcp, en caso de no encontrar info, busca info actualizada en la web.                                                                   

@@ -19,7 +19,7 @@ ZSH_THEME="agnoster"
 # Uncomment the following line to use case-sensitive completion.
 # CASE_SENSITIVE="true"
 
-DEFAULT_USER=acabreragnz
+DEFAULT_USER=$(whoami)
 
 # Uncomment the following line to use hyphen-insensitive completion.
 # Case-sensitive completion must be off. _ and - will be interchangeable.
@@ -221,7 +221,7 @@ alias oldnpm="$(nvm which current | sed 's/\/node$/\/npm/')"
 
 
 # pnpm
-export PNPM_HOME="/home/acabreragnz/.local/share/pnpm"
+export PNPM_HOME="$HOME/.local/share/pnpm"
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
@@ -242,7 +242,6 @@ export PATH=$PATH:$ANDROID_HOME/platform-tools
 export PATH=$PATH:$ANDROID_HOME/build-tools
 export DOTNET_ROOT=$HOME/.dotnet
 export PATH=$PATH:$HOME/.dotnet:$HOME/.dotnet/tools
-eval "$(direnv hook zsh)"
 
 # opencode
-export PATH=/home/acabreragnz/.opencode/bin:$PATH
+export PATH=$HOME/.opencode/bin:$PATH
