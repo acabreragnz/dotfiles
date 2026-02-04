@@ -3,9 +3,6 @@
 # Actualizar el sistema
 sudo apt update && sudo apt upgrade -y
 
-# Instalar paquetes esenciales
-sudo apt install -y git curl zsh fonts-powerline gnome-tweaks fonts-cascadia-code software-properties-common
-
 # Instalar paquetes esenciales desde archivo
 if [ -f "$HOME/.config/essential-apt-packages.txt" ]; then
   echo "Instalando paquetes desde essential-apt-packages.txt..."
