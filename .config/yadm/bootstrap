@@ -1,10 +1,16 @@
-#!/bin/sh
+#!/bin/bash
 
 # Actualizar el sistema
 sudo apt update && sudo apt upgrade -y
 
 # Instalar paquetes esenciales
-sudo apt install -y git curl zsh fonts-powerline gnome-tweaks fonts-cascadia-code
+sudo apt install -y git curl zsh fonts-powerline gnome-tweaks fonts-cascadia-code software-properties-common
+
+# Instalar paquetes esenciales desde archivo
+if [ -f "$HOME/.config/essential-apt-packages.txt" ]; then
+  echo "Instalando paquetes desde essential-apt-packages.txt..."
+  cat "$HOME/.config/essential-apt-packages.txt" | grep -v '^#' | grep -v '^$' | xargs sudo apt install -y
+fi
 
 # Instalar oh-my-zsh de manera no interactiva
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
@@ -35,7 +41,14 @@ install_plugin "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosugge
 install_plugin "zsh-npm-scripts-autocomplete" "https://github.com/grigorii-zander/zsh-npm-scripts-autocomplete.git"
 
 yadm checkout .zshrc
-source ~/.zshrc
+# source ~/.zshrc # No se puede ejecutar en script
+
+# Cambiar shell predeterminado a ZSH
+if [ "$SHELL" != "$(which zsh)" ]; then
+  echo "Cambiando shell predeterminado a ZSH..."
+  chsh -s $(which zsh)
+  echo "Shell cambiado a ZSH. Necesitarás cerrar sesión y volver a entrar para que tome efecto."
+fi
 
 echo "Instalación de ZSH y plugins completada. Por favor, reinicia tu terminal."
 
@@ -49,8 +62,13 @@ if [ ! -d "$NVM_DIR" ]; then
   echo "NVM y Node.js LTS instalados."
 fi
 
-echo "Instalando PHP 8.4 y extensiones requeridas..."
-sudo apt install -y php8.4 php8.4-mbstring php8.4-xml php8.4-curl php8.4-zip php8.4-bcmath php8.4-mysql php8.4-sqlite3
+echo "Instalando PHP 8.5 y extensiones requeridas..."
+# Agregar PPA de Ondrej para PHP 8.5
+if ! grep -q "^deb .*ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+  sudo add-apt-repository -y ppa:ondrej/php
+  sudo apt update
+fi
+sudo apt install -y php8.5 php8.5-mbstring php8.5-xml php8.5-curl php8.5-zip php8.5-bcmath php8.5-mysql php8.5-sqlite3
 
 # Instalar Composer globalmente
 if ! command -v composer &> /dev/null
@@ -140,14 +158,8 @@ check_and_install_app() {
 
 check_and_install_app "Warp" "warp-terminal" "https://app.warp.dev/download?package=deb" "warp.deb"
 check_and_install_app "VSCode" "code" "https://update.code.visualstudio.com/latest/linux-deb-x64/stable" "vscode.deb"
+check_and_install_app "Cursor" "cursor" "https://api2.cursor.sh/updates/download/golden/linux-x64-deb/cursor/2.4" "cursor.deb"
 check_and_install_app "Google Chrome" "google-chrome" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb" "chrome.deb"
-
-# Create custom scripts using naitilus
-rm -rf "$HOME/.local/share/nautilus/scripts"
-mkdir -p "$HOME/.local/share/nautilus/scripts"
-cp -r scripts/* "$HOME/.local/share/nautilus/scripts"
-chmod +x "$HOME/.local/share/nautilus/scripts/"*
-nautilus -q
 
 # Corregir posibles dependencias faltantes después de la instalación
 sudo apt install -f -y
@@ -239,6 +251,12 @@ dconf write /org/gnome/shell/extensions/dash-to-dock/dash-max-icon-size 38
 dconf write /org/gnome/shell/extensions/dash-to-dock/multi-monitor true
 
 echo "GNOME configurado."
+
+# Instalar snaps esenciales desde archivo
+if [ -f "$HOME/.config/essential-snaps.txt" ]; then
+  echo "Instalando snaps desde essential-snaps.txt..."
+  cat "$HOME/.config/essential-snaps.txt" | grep -v '^#' | grep -v '^$' | xargs -L 1 sudo snap install
+fi
 
 # Limpiar archivos temporales y la caché de apt
 sudo apt autoremove -y
