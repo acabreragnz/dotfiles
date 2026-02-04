@@ -207,12 +207,38 @@ else
   echo "Ni Cursor ni VSCode están instalados. Manteniendo editor predeterminado del sistema."
 fi
 
-# Restaurar configuración de GNOME (dconf)
-if [ -f "$HOME/.config/dconf/user.conf" ]; then
-  echo "Restaurando configuración de GNOME (tema, atajos, dock, etc.)..."
-  dconf load / < "$HOME/.config/dconf/user.conf"
-  echo "Configuración de GNOME restaurada."
-fi
+# Configurar GNOME (solo settings específicos, no destructivo)
+echo "Configurando GNOME..."
+
+# Tema oscuro
+dconf write /org/gnome/desktop/interface/color-scheme "'prefer-dark'"
+
+# Teclado US + US International
+dconf write /org/gnome/desktop/input-sources/sources "[('xkb', 'us'), ('xkb', 'us+intl')]"
+
+# Registrar atajos personalizados
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings "['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/flameshot/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/warp/']"
+
+# Super+C → Claude
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude/binding "'<Super>c'"
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude/command "'gtk-launch claude-desktop 2>/dev/null || claude'"
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude/name "'Claude'"
+
+# Print → Flameshot
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/flameshot/binding "'Print'"
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/flameshot/command "'flameshot gui'"
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/flameshot/name "'Flameshot'"
+
+# Super+Return → Warp
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/warp/binding "'<Super>Return'"
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/warp/command "'warp-terminal'"
+dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/warp/name "'Warp Terminal'"
+
+# Dock
+dconf write /org/gnome/shell/extensions/dash-to-dock/dash-max-icon-size 38
+dconf write /org/gnome/shell/extensions/dash-to-dock/multi-monitor true
+
+echo "GNOME configurado."
 
 # Limpiar archivos temporales y la caché de apt
 sudo apt autoremove -y
