@@ -260,4 +260,30 @@ sudo apt autoremove -y
 sudo apt autoclean -y
 echo "Limpieza de sistema completada."
 
+# ==========================================
+# Hardening de Seguridad
+# ==========================================
+echo ""
+echo "Aplicando configuraciones de seguridad..."
+
+# Configuraciones de GNOME (no requiere sudo)
+if [ -f "$HOME/.config/yadm/scripts/gnome-security-settings.sh" ]; then
+  bash "$HOME/.config/yadm/scripts/gnome-security-settings.sh"
+fi
+
+# Hardening completo (ejecutar con sudo después si es necesario)
+if [ -f "$HOME/.config/yadm/scripts/security-hardening.sh" ]; then
+  bash "$HOME/.config/yadm/scripts/security-hardening.sh"
+fi
+
+echo ""
+echo "=============================================="
 echo "Instalación completada."
+echo "=============================================="
+echo ""
+echo "NOTA IMPORTANTE - Seguridad:"
+echo "Para aplicar política de contraseñas (requiere sudo):"
+echo "  sudo bash ~/.config/yadm/scripts/security-hardening.sh"
+echo ""
+echo "Ver política completa: cat ~/.config/security-policy.conf"
+echo ""

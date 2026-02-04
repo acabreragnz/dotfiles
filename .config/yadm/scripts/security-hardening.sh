@@ -23,11 +23,20 @@ echo ""
 echo -e "${COLOR_BLUE}[1/4] Configurando screen lock automático...${COLOR_RESET}"
 
 if command -v gsettings &> /dev/null; then
-    # Auto-lock después de 5 minutos (300 segundos)
-    gsettings set org.gnome.desktop.screensaver lock-delay 300
-    gsettings set org.gnome.desktop.screensaver idle-activation-enabled true
-    gsettings set org.gnome.desktop.screensaver lock-enabled true
-    gsettings set org.gnome.desktop.session idle-delay 300
+    # Si se ejecuta como root, ejecutar como el usuario real
+    if [ "$EUID" -eq 0 ] && [ -n "$SUDO_USER" ]; then
+        echo -e "${COLOR_YELLOW}   Configurando como usuario $SUDO_USER...${COLOR_RESET}"
+        sudo -u "$SUDO_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $SUDO_USER)/bus" gsettings set org.gnome.desktop.screensaver lock-delay 300
+        sudo -u "$SUDO_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $SUDO_USER)/bus" gsettings set org.gnome.desktop.screensaver idle-activation-enabled true
+        sudo -u "$SUDO_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $SUDO_USER)/bus" gsettings set org.gnome.desktop.screensaver lock-enabled true
+        sudo -u "$SUDO_USER" DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$(id -u $SUDO_USER)/bus" gsettings set org.gnome.desktop.session idle-delay 300
+    else
+        # Auto-lock después de 5 minutos (300 segundos)
+        gsettings set org.gnome.desktop.screensaver lock-delay 300
+        gsettings set org.gnome.desktop.screensaver idle-activation-enabled true
+        gsettings set org.gnome.desktop.screensaver lock-enabled true
+        gsettings set org.gnome.desktop.session idle-delay 300
+    fi
 
     echo -e "${COLOR_GREEN}✅ Screen lock configurado (5 minutos)${COLOR_RESET}"
 else
