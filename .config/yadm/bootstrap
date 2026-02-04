@@ -1,15 +1,114 @@
 #!/bin/bash
+set -e           # Salir si algún comando falla
+set -o pipefail  # Fallar en pipes si algún comando falla
 
-# Actualizar el sistema
-sudo apt update && sudo apt upgrade -y
+# ==========================================
+# Variables Globales
+# ==========================================
+TOTAL_STEPS=14
+CURRENT_STEP=0
+APT_UPDATED=false
+TEMP_FILES=()
+LOG_FILE="$HOME/.config/yadm/bootstrap.log"
 
-# Instalar paquetes esenciales desde archivo
+# ==========================================
+# Sistema de Logging
+# ==========================================
+# Inicializar log
+echo "========================================" >> "$LOG_FILE"
+echo "Bootstrap ejecutado: $(date)" >> "$LOG_FILE"
+echo "========================================" >> "$LOG_FILE"
+
+log() {
+  local level="$1"
+  shift
+  local message="$*"
+  local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+  local log_line="[$timestamp] [$level] $message"
+  echo "$log_line" | tee -a "$LOG_FILE"
+}
+
+# ==========================================
+# Funciones de Control
+# ==========================================
+step() {
+  CURRENT_STEP=$((CURRENT_STEP + 1))
+  log "INFO" ">>> PASO $CURRENT_STEP/$TOTAL_STEPS: $*"
+}
+
+ensure_apt_updated() {
+  if [ "$APT_UPDATED" = false ]; then
+    log "INFO" "Actualizando índice apt..."
+    sudo apt update
+    APT_UPDATED=true
+  fi
+}
+
+cleanup() {
+  if [ ${#TEMP_FILES[@]} -gt 0 ]; then
+    log "INFO" "Limpiando archivos temporales..."
+    for file in "${TEMP_FILES[@]}"; do
+      rm -f "$file" 2>/dev/null
+    done
+  fi
+}
+
+trap cleanup EXIT ERR INT TERM
+
+check_dependencies() {
+  local missing_deps=()
+  for cmd in wget curl git sudo; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+      missing_deps+=("$cmd")
+    fi
+  done
+  if [ ${#missing_deps[@]} -gt 0 ]; then
+    echo "ERROR: Faltan dependencias: ${missing_deps[*]}"
+    echo "Instala con: sudo apt install ${missing_deps[*]}"
+    exit 1
+  fi
+}
+
+check_architecture() {
+  ARCH=$(dpkg --print-architecture)
+  log "INFO" "Arquitectura: $ARCH"
+  case "$ARCH" in
+    amd64|x86_64)
+      log "SUCCESS" "Arquitectura soportada"
+      ;;
+    arm64|aarch64)
+      log "WARNING" "Arquitectura ARM - algunas apps pueden no estar disponibles"
+      ;;
+    *)
+      log "WARNING" "Arquitectura no probada: $ARCH"
+      ;;
+  esac
+}
+
+# Ejecutar verificaciones iniciales
+check_dependencies
+check_architecture
+
+# ==========================================
+# SECCIÓN: Actualización del Sistema
+# ==========================================
+step "Actualizando sistema"
+ensure_apt_updated
+sudo apt upgrade -y
+
+# ==========================================
+# SECCIÓN: Paquetes Esenciales
+# ==========================================
+step "Instalando paquetes esenciales"
 if [ -f "$HOME/.config/essential-apt-packages.txt" ]; then
-  echo "Instalando paquetes desde essential-apt-packages.txt..."
+  log "INFO" "Instalando paquetes desde essential-apt-packages.txt..."
   cat "$HOME/.config/essential-apt-packages.txt" | grep -v '^#' | grep -v '^$' | xargs sudo apt install -y
 fi
 
-# Instalar oh-my-zsh de manera no interactiva
+# ==========================================
+# SECCIÓN: ZSH y Oh-My-Zsh
+# ==========================================
+step "Instalando Oh-My-Zsh"
 if [ ! -d "$HOME/.oh-my-zsh" ]; then
     RUNZSH=no sh -c "$(wget -O- https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 fi
@@ -23,13 +122,16 @@ install_plugin() {
   local git_repo="$2"
   local plugin_dir="${OH_MY_ZSH_CUSTOM}/${plugin_name}"
 
-  if [ -d "$plugin_dir" ]; then
-    echo "El plugin ${plugin_name} ya está instalado. Reinstalándolo."
-    rm -rf "$plugin_dir"
+  if [ -d "$plugin_dir/.git" ]; then
+    log "INFO" "Actualizando plugin ${plugin_name}..."
+    (cd "$plugin_dir" && git pull -q) || log "WARNING" "Fallo actualización de ${plugin_name}"
+  else
+    log "INFO" "Instalando plugin ${plugin_name}..."
+    if [ -d "$plugin_dir" ]; then
+      rm -rf "$plugin_dir"
+    fi
+    git clone -q "$git_repo" "$plugin_dir"
   fi
-
-  git clone "$git_repo" "$plugin_dir"
-  echo "Plugin ${plugin_name} clonado correctamente."
 }
 
 # Instalar plugins zsh
@@ -37,29 +139,70 @@ install_plugin "zsh-syntax-highlighting" "https://github.com/zsh-users/zsh-synta
 install_plugin "zsh-autosuggestions" "https://github.com/zsh-users/zsh-autosuggestions.git"
 install_plugin "zsh-npm-scripts-autocomplete" "https://github.com/grigorii-zander/zsh-npm-scripts-autocomplete.git"
 
-yadm checkout .zshrc
+# Checkout .zshrc solo si no tiene cambios locales
+if [ -f "$HOME/.zshrc" ]; then
+  if yadm diff --quiet .zshrc 2>/dev/null; then
+    log "INFO" "Aplicando .zshrc desde yadm..."
+    yadm checkout .zshrc
+  else
+    log "WARNING" ".zshrc tiene cambios locales, no se sobrescribirá"
+    log "INFO" "Para aplicar la versión de yadm: yadm checkout .zshrc"
+  fi
+else
+  log "INFO" "Aplicando .zshrc desde yadm (fresh install)..."
+  yadm checkout .zshrc
+fi
 # source ~/.zshrc # No se puede ejecutar en script
 
 # Cambiar shell predeterminado a ZSH
 if [ "$SHELL" != "$(which zsh)" ]; then
-  echo "Cambiando shell predeterminado a ZSH..."
-  chsh -s $(which zsh)
-  echo "Shell cambiado a ZSH. Necesitarás cerrar sesión y volver a entrar para que tome efecto."
+  log "INFO" "Cambiando shell a ZSH..."
+
+  if ! grep -q "^$(which zsh)$" /etc/shells; then
+    log "INFO" "Agregando ZSH a /etc/shells..."
+    echo "$(which zsh)" | sudo tee -a /etc/shells
+  fi
+
+  if chsh -s "$(which zsh)"; then
+    log "SUCCESS" "Shell cambiado a ZSH"
+  else
+    log "WARNING" "No se pudo cambiar shell. Ejecuta: chsh -s $(which zsh)"
+  fi
 fi
 
-echo "Instalación de ZSH y plugins completada. Por favor, reinicia tu terminal."
+log "SUCCESS" "Instalación de ZSH y plugins completada."
 
-# Instalar NVM, Node.js LTS y configurar el entorno NVM
+# ==========================================
+# SECCIÓN: Node.js y NVM
+# ==========================================
+step "Instalando NVM y Node.js"
 export NVM_DIR="$HOME/.nvm"
 if [ ! -d "$NVM_DIR" ]; then
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
-  \. "$NVM_DIR/nvm.sh"
+  log "INFO" "Instalando NVM..."
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
+
+  if [ -s "$NVM_DIR/nvm.sh" ]; then
+    \. "$NVM_DIR/nvm.sh"
+  else
+    log "ERROR" "NVM instalado pero nvm.sh no encontrado"
+    exit 1
+  fi
+
+  if ! command -v nvm >/dev/null 2>&1; then
+    log "ERROR" "Comando nvm no disponible después de instalación"
+    exit 1
+  fi
+
   nvm install --lts
   nvm alias default node
-  echo "NVM y Node.js LTS instalados."
+  log "SUCCESS" "NVM y Node.js LTS instalados"
 fi
 
-echo "Instalando PHP 8.5 y extensiones requeridas..."
+# ==========================================
+# SECCIÓN: PHP
+# ==========================================
+step "Instalando PHP 8.5 y extensiones"
+log "INFO" "Instalando PHP 8.5 y extensiones requeridas..."
 # Agregar PPA de Ondrej para PHP 8.5
 if ! grep -q "^deb .*ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
   sudo add-apt-repository -y ppa:ondrej/php
@@ -67,48 +210,58 @@ if ! grep -q "^deb .*ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/*
 fi
 sudo apt install -y php8.5 php8.5-mbstring php8.5-xml php8.5-curl php8.5-zip php8.5-bcmath php8.5-mysql php8.5-sqlite3
 
-# Instalar Composer globalmente
+# ==========================================
+# SECCIÓN: Composer
+# ==========================================
+step "Instalando Composer"
 if ! command -v composer &> /dev/null
 then
-  echo "Composer no encontrado. Instalando Composer..."
+  log "INFO" "Composer no encontrado. Instalando Composer..."
   php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
   sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer
   php -r "unlink('composer-setup.php');"
-  echo "Composer instalado correctamente."
+  log "SUCCESS" "Composer instalado correctamente."
 else
-  echo "Composer ya estaba instalado."
+  log "INFO" "Composer ya estaba instalado."
 fi
 
-# Instalar la CLI de GitHub si no está ya instalada
+# ==========================================
+# SECCIÓN: GitHub CLI
+# ==========================================
+step "Instalando GitHub CLI"
 if ! command -v gh >/dev/null 2>&1; then
   sudo mkdir -p -m 755 /etc/apt/keyrings
   wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
   sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
   echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
   sudo apt update && sudo apt install gh -y
-  echo "GitHub CLI instalada."
+  log "SUCCESS" "GitHub CLI instalada."
 fi
 
-# Instalar AutoKey si no está instalado
+# ==========================================
+# SECCIÓN: AutoKey
+# ==========================================
+step "Instalando AutoKey"
 if ! command -v autokey-gtk >/dev/null 2>&1; then
-    echo "Instalando AutoKey..."
+    log "INFO" "Instalando AutoKey..."
     # Hacer backup temporal de la configuración existente si existe
     if [ -d "$HOME/.config/autokey" ]; then
         mv "$HOME/.config/autokey" "$HOME/.config/autokey.temp"
     fi
     
     # Instalar AutoKey
+    ensure_apt_updated
     sudo apt install -y autokey-gtk
-    
+
     # Restaurar la configuración y limpiar
     if [ -d "$HOME/.config/autokey.temp" ]; then
         rm -rf "$HOME/.config/autokey"
         mv "$HOME/.config/autokey.temp" "$HOME/.config/autokey"
     fi
-    
+
     # Asegurarse de que los permisos están correctos
     chmod -R u+rw "$HOME/.config/autokey"
-    
+
     # Iniciar AutoKey en segundo plano
     nohup autokey-gtk >/dev/null 2>&1 &
     # Configurar autostart para AutoKey
@@ -122,7 +275,7 @@ Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
 EOL
-    echo "AutoKey instalado, configurado y añadido al inicio automático."
+    log "SUCCESS" "AutoKey instalado, configurado y añadido al inicio automático."
 else
     # Asegurar que autostart está configurado incluso si AutoKey ya estaba instalado
     mkdir -p "$HOME/.config/autostart"
@@ -135,8 +288,13 @@ Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
 EOL
-    echo "AutoKey ya está instalado. Configuración de inicio automático actualizada."
+    log "INFO" "AutoKey ya está instalado. Configuración de inicio automático actualizada."
 fi
+
+# ==========================================
+# SECCIÓN: Aplicaciones de Terceros
+# ==========================================
+step "Instalando aplicaciones de terceros"
 
 # Descargar e instalar aplicaciones de terceros solo si no están ya instaladas
 check_and_install_app() {
@@ -146,23 +304,43 @@ check_and_install_app() {
   local deb_name="$4"
 
   if ! command -v "$app_command" >/dev/null 2>&1; then
-    wget "$download_url" -O "$deb_name" && sudo dpkg -i "$deb_name" && rm "$deb_name"
-    echo "$app_name instalado."
+    log "INFO" "Descargando $app_name..."
+    TEMP_FILES+=("$deb_name")
+
+    if ! wget -q --show-progress "$download_url" -O "$deb_name"; then
+      log "ERROR" "Fallo descarga de $app_name"
+      return 1
+    fi
+
+    if [ ! -s "$deb_name" ]; then
+      log "ERROR" "Archivo $deb_name vacío"
+      return 1
+    fi
+
+    if sudo dpkg -i "$deb_name"; then
+      log "SUCCESS" "$app_name instalado"
+    else
+      log "ERROR" "Fallo instalación de $app_name"
+      return 1
+    fi
   else
-    echo "$app_name ya está instalado."
+    log "INFO" "$app_name ya instalado"
   fi
 }
 
 check_and_install_app "Warp" "warp-terminal" "https://app.warp.dev/download?package=deb" "warp.deb"
 check_and_install_app "VSCode" "code" "https://update.code.visualstudio.com/latest/linux-deb-x64/stable" "vscode.deb"
-check_and_install_app "Cursor" "cursor" "https://api2.cursor.sh/updates/download/golden/linux-x64-deb/cursor/2.4" "cursor.deb"
+check_and_install_app "Cursor" "cursor" "https://www.cursor.com/api/download?platform=linux-x64&releaseTrack=stable" "cursor.deb"
 check_and_install_app "Google Chrome" "google-chrome" "https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb" "chrome.deb"
 
 # Corregir posibles dependencias faltantes después de la instalación
 sudo apt install -f -y
 
-# Configurar editor predeterminado para archivos de código
-echo "Configurando editor predeterminado para archivos de código..."
+# ==========================================
+# SECCIÓN: Configuración MIME Types
+# ==========================================
+step "Configurando editor predeterminado"
+log "INFO" "Configurando editor predeterminado para archivos de código..."
 
 # Lista de tipos MIME para archivos de código
 MIME_TYPES=(
@@ -199,12 +377,12 @@ MIME_TYPES=(
 configure_mime_types() {
   local desktop_file="$1"
   local editor_name="$2"
-  
-  echo "Configurando $editor_name como editor predeterminado..."
+
+  log "INFO" "Configurando $editor_name como editor predeterminado..."
   for mime_type in "${MIME_TYPES[@]}"; do
     xdg-mime default "$desktop_file" "$mime_type"
   done
-  echo "$editor_name configurado como editor predeterminado para archivos de código."
+  log "SUCCESS" "$editor_name configurado como editor predeterminado para archivos de código."
 }
 
 # Detectar y configurar el mejor editor disponible
@@ -213,11 +391,14 @@ if command -v cursor >/dev/null 2>&1; then
 elif command -v code >/dev/null 2>&1; then
   configure_mime_types "code.desktop" "VSCode"
 else
-  echo "Ni Cursor ni VSCode están instalados. Manteniendo editor predeterminado del sistema."
+  log "WARNING" "Ni Cursor ni VSCode están instalados. Manteniendo editor predeterminado del sistema."
 fi
 
-# Configurar GNOME (solo settings específicos, no destructivo)
-echo "Configurando GNOME..."
+# ==========================================
+# SECCIÓN: Configuración GNOME
+# ==========================================
+step "Configurando GNOME"
+log "INFO" "Configurando GNOME..."
 
 # Tema oscuro
 dconf write /org/gnome/desktop/interface/color-scheme "'prefer-dark'"
@@ -247,24 +428,31 @@ dconf write /org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/war
 dconf write /org/gnome/shell/extensions/dash-to-dock/dash-max-icon-size 38
 dconf write /org/gnome/shell/extensions/dash-to-dock/multi-monitor true
 
-echo "GNOME configurado."
+log "SUCCESS" "GNOME configurado."
 
-# Instalar snaps esenciales desde archivo
+# ==========================================
+# SECCIÓN: Snaps
+# ==========================================
+step "Instalando snaps esenciales"
 if [ -f "$HOME/.config/essential-snaps.txt" ]; then
-  echo "Instalando snaps desde essential-snaps.txt..."
+  log "INFO" "Instalando snaps desde essential-snaps.txt..."
   cat "$HOME/.config/essential-snaps.txt" | grep -v '^#' | grep -v '^$' | xargs -L 1 sudo snap install
 fi
 
-# Limpiar archivos temporales y la caché de apt
+# ==========================================
+# SECCIÓN: Limpieza del Sistema
+# ==========================================
+step "Limpiando sistema"
+log "INFO" "Limpiando archivos temporales y caché de apt..."
 sudo apt autoremove -y
 sudo apt autoclean -y
-echo "Limpieza de sistema completada."
+log "SUCCESS" "Limpieza de sistema completada."
 
 # ==========================================
-# Hardening de Seguridad
+# SECCIÓN: Hardening de Seguridad
 # ==========================================
-echo ""
-echo "Aplicando configuraciones de seguridad..."
+step "Aplicando configuraciones de seguridad"
+log "INFO" "Aplicando configuraciones de seguridad..."
 
 # Configuraciones de GNOME (no requiere sudo)
 if [ -f "$HOME/.config/yadm/scripts/gnome-security-settings.sh" ]; then
@@ -276,9 +464,20 @@ if [ -f "$HOME/.config/yadm/scripts/security-hardening.sh" ]; then
   bash "$HOME/.config/yadm/scripts/security-hardening.sh"
 fi
 
+# Autenticación biométrica (huella dactilar)
+log "INFO" "Configurando autenticación biométrica..."
+if [ -f "$HOME/.config/yadm/scripts/setup-fingerprint-auth.sh" ]; then
+  # Ejecutar con --skip-enroll para no re-registrar si ya existen huellas
+  bash "$HOME/.config/yadm/scripts/setup-fingerprint-auth.sh" --skip-enroll
+else
+  log "WARNING" "Script de fingerprint no encontrado, saltando..."
+fi
+
+log "SUCCESS" "Configuraciones de seguridad aplicadas."
+
 echo ""
 echo "=============================================="
-echo "Instalación completada."
+log "SUCCESS" "Instalación completada."
 echo "=============================================="
 echo ""
 echo "NOTA IMPORTANTE - Seguridad:"
