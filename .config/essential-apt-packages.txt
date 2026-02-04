@@ -1,0 +1,8 @@
+# Essential apt packages to install on fresh Ubuntu setup
+# Install with: cat ~/.config/essential-apt-packages.txt | grep -v '^#' | xargs sudo apt install -y
+
+flameshot
+git
+curl
+wget
+build-essential
