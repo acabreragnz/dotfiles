@@ -22,7 +22,6 @@
     "javascript.updateImportsOnFileMove.enabled": "always",
     "typescript.preferences.quoteStyle": "single",
     "editor.tabSize": 2,
-    "terminal.integrated.inheritEnv": false,
     "editor.inlineSuggest.enabled": true,
     "editor.fontFamily": "'Cascadia Code', 'Cascadia Code Italic','Droid Sans Mono', 'monospace', monospace",
     "editor.fontLigatures": true,
@@ -65,12 +64,8 @@
     "screencastMode.verticalOffset": 10,
     "editor.stickyScroll.enabled": true,
     "git.autofetch": true,
-    "better-pest.docker.enable": true,
-    "better-pest.docker.command": "docker compose run --rm php",
-    "better-pest.suiteSuffix": "",
     "editor.wordSeparators": "`~!@#%^&*()=+[{]}\\|;:'\",.<>/?",
     "editor.mouseWheelZoom": true,
-    "php.debug.executablePath": "",
     "[vue]": {
         "editor.defaultFormatter": "Vue.volar"
     },
@@ -99,8 +94,6 @@
     "vue.codeActions.savingTimeLimit": 3000,
     "terminal.external.linuxExec": "warp",
     "terminal.external.osxExec": "Warp.app",
-    "gitlens.ai.experimental.provider": "openai",
-    "gitlens.ai.experimental.openai.model": "gpt-4-turbo-preview",
     "github.copilot.editor.enableAutoCompletions": true,
     "prettier.singleQuote": true,
     "prettier.printWidth": 120,
@@ -358,10 +351,6 @@
     "editor.lightbulb.enabled": "true",
     "debug.showVariableTypes": true,
     "diffEditor.experimental.useTrueInlineView": true,
-    "supermaven.enable": {
-        "plaintext": false
-    },
-    "LaravelExtraIntellisense.phpCommand": "docker exec -it acapedia-backend-php php -r \"{code}\"",
     "gitlens.heatmap.locations": [
         "gutter",
         "overview"
@@ -373,7 +362,6 @@
     ],
     "diffEditor.ignoreTrimWhitespace": true,
     "gitlens.currentLine.uncommittedChangesFormat": "✏️ ${ago}",
-    "supermaven.otherWarning": false,
     "editor.codeActions.triggerOnFocusChange": true,
     "git.enableSmartCommit": true,
     "vite.autoStart": false,
@@ -435,7 +423,6 @@
     ],
     "todo-tree.highlights.enabled": false,
     "gitlens.views.commitDetails.files.layout": "list",
-    "gitlens.ai.experimental.model": "anthropic:claude-3-opus-20240229",
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "security.promptForLocalFileProtocolHandling": false,
     "gutterpreview.imagePreviewMaxWidth": 10,
@@ -443,13 +430,11 @@
     "diffEditor.codeLens": true,
     "typescript.preferences.importModuleSpecifierEnding": "minimal",
     "javascript.preferences.importModuleSpecifierEnding": "minimal",
-    "chronicler.ffmpeg-binary": "/usr/bin/ffmpeg",
     "figma.autocompleteBlocks": true,
-    "laravel-pint.enable": true,
     "workbench.activityBar.orientation": "vertical",
     "editor.minimap.enabled": true,
     "github.copilot.nextEditSuggestions.enabled": true,
-    "workbench.colorTheme": "Idx Dark Theme",
+    "workbench.colorTheme": "One Dark Pro Darker",
     "workbench.iconTheme": "material-icon-theme",
     "workbench.settings.applyToAllProfiles": [
         "typescript.referencesCodeLens.enabled",
@@ -474,9 +459,12 @@
             "id": "F95FED00-2D1F-4AAD-BCB3-66140F540901"
         }
     ],
+    "gitlens.ai.model": "vscode",
+    "gitlens.ai.vscode.model": "copilot:gpt-4.1",
     "cursor.cpp.disabledLanguages": [
         "markdown",
         "scminput",
         "typescriptreact"
-    ]
+    ],
+    "docker.extension.enableComposeLanguageServer": false
 }
