@@ -1,6 +1,7 @@
 [user]
 	name = Toni Cabrera
 	email = acabreragnz@gmail.com
+	signingkey = /home/tcabrera/.ssh/id_ed25519_personal.pub
 [push]
 	default = current
 	followTags = true
@@ -34,3 +35,12 @@
 	required = true
 	clean = git-lfs clean -- %f
 	smudge = git-lfs smudge -- %f
+[gpg]
+	format = ssh
+[commit]
+	gpgsign = true
+
+# Configuración automática por directorio
+# Repos en ~/dev/rabbet/ usan automáticamente la config de Rabbet
+[includeIf "gitdir:~/dev/rabbet/"]
+	path = ~/.gitconfig-rabbet
