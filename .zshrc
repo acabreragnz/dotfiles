@@ -104,41 +104,15 @@ source $ZSH/oh-my-zsh.sh
 bindkey '^H' backward-kill-word
 
 ### aliases
-# alias cc=claude  # Replaced with function below
 alias gcom="git checkout -m"
 
-# Claude Code with tab naming
-# Usage: cc [name]
-# Note: Warp handles tab colors through its UI, not terminal escape sequences
-cc() {
-    local tab_name="$1"
-    
-    # Si no se proporciona nombre, usar el directorio
-    if [ -z "$tab_name" ]; then
-        tab_name="$(basename "$PWD")"
-    fi
-    
-    # Guardar el nombre del tab para uso persistente
-    export WARP_TAB_NAME="$tab_name"
-    
-    # Cambiar el título inmediatamente
-    echo -ne "\033]0;$tab_name\007"
-    
-    # Configurar función para mantener el título fijo (según docs de Warp)
-    set_warp_tab_name() {
-        if [ -n "$WARP_TAB_NAME" ]; then
-            echo -ne "\033]0;$WARP_TAB_NAME\007"
-        fi
-    }
-    
-    # Agregar a precmd_functions si no existe ya
-    if [[ ! " ${precmd_functions[*]} " =~ " set_warp_tab_name " ]]; then
-        precmd_functions+=(set_warp_tab_name)
-    fi
-    
-    # Ejecutar Claude SIN parámetros, solo con la variable de entorno
-    CLAUDE_TAB_NAME="$tab_name" claude
-}
+### Claude CLI aliases
+alias cc="claude"
+alias ccd="claude --dangerously-skip-permissions"
+alias ccp="claude -p"
+alias ccc="claude -c"
+alias ccr="claude -r"
+alias ccpt="claude -p --no-session-persistence --model haiku --settings '{\"alwaysThinkingEnabled\":false}'"
 
 # alias npm=pnpm
 alias pn=pnpm
@@ -147,26 +121,38 @@ alias pnx='pnpm dlx'
 alias pnr="cat package.json | jq -r '.scripts | keys[]' | fzf | xargs -I {} npm run {}"
 alias zshrc="code ~/.zshrc"
 
-### Docker Compose aliases
-alias dc='docker compose'
-alias dcu='docker compose up'
-alias dcub='docker compose up --build'
-alias dcud='docker compose up -d'
-alias dcd='docker compose down'
-alias dcdv='docker compose down -v'
-alias dcps='docker compose ps'
-alias dcl='docker compose logs'
-alias dclf='docker compose logs -f'
-alias dcr='docker compose restart'
-alias dcrm='docker compose rm'
-alias dcp='docker compose pull'
-alias dcb='docker compose build'
-alias dcexec='docker compose exec'
-alias dcrun='docker compose run --rm'
-alias dcs='docker compose stop'
-alias dck='docker compose kill'
+# Docker Compose aliases for Elixir development
+alias dexec="docker compose exec"
+alias drestart="docker compose restart"
+alias dup="docker compose up -d"
+
+alias dmix="docker compose exec app mix"
+alias dtest="docker compose exec test mix test"
+alias diex="docker compose exec -it app iex -S mix"
+alias dpsql="docker compose exec -it postgres psql -U postgres"
+alias dlogs="docker compose logs -f"
 
 ### functions
+# Instalar archivos .deb o paquetes desde repositorios
+# Ejemplos:
+#   debi archivo.deb              -> instala archivo local en directorio actual
+#   debi ~/Descargas/app.deb      -> instala archivo con ruta completa
+#   debi /tmp/paquete.deb         -> instala archivo con ruta absoluta
+#   debi nombre-paquete           -> instala paquete desde repositorios
+debi() {
+  if [ -f "$1" ]; then
+    # Si el archivo existe, asegurarse de que tenga ./ al inicio si no tiene ruta
+    if [[ "$1" != */* ]]; then
+      sudo apt install "./$1"
+    else
+      sudo apt install "$1"
+    fi
+  else
+    # Si no es un archivo, pasar como paquete normal
+    sudo apt install "$@"
+  fi
+}
+
 function gacp() {
   git add -A
   git commit -m "$1"
@@ -188,36 +174,68 @@ dcpest() {
 
 ### misc
 
-export NVM_DIR="$HOME/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+# Initialize Homebrew (must come before any brew commands)
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv zsh)"
 
-autoload -U add-zsh-hook
-load-nvmrc() {
-  local node_version="$(nvm version)"
-  local nvmrc_path="$(nvm_find_nvmrc)"
+# =================================================================
+# PROJECT RABBET - Version Manager Toggle
+# =================================================================
+# Set to true to use asdf (for Rabbet project)
+# Set to false to use nvm (for other projects)
+export USE_RABBET=true
 
-  if [ -n "$nvmrc_path" ]; then
-    local nvmrc_node_version=$(nvm version "$(cat "${nvmrc_path}")")
+if [ "$USE_RABBET" = "true" ]; then
+  # ASDF configuration (for Rabbet project) - installed via brew
+  . $(brew --prefix asdf)/libexec/asdf.sh
 
-    if [ "$nvmrc_node_version" = "N/A" ]; then
-      nvm install
-    elif [ "$nvmrc_node_version" != "$node_version" ]; then
-      nvm use
+  # Auto-enable corepack when installing Node.js versions
+  export ASDF_NODEJS_AUTO_ENABLE_COREPACK=1
+else
+  # NVM configuration (for other projects)
+  export NVM_DIR="$HOME/.nvm"
+  [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+  [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+  # Auto-load .nvmrc files
+  autoload -U add-zsh-hook
+  load-nvmrc() {
+    local node_version="$(nvm version)"
+    local nvmrc_path="$(nvm_find_nvmrc)"
+
+    if [ -n "$nvmrc_path" ]; then
+      local nvmrc_node_version=$(nvm version "$(cat "${nvmrc_path}")")
+
+      if [ "$nvmrc_node_version" = "N/A" ]; then
+        nvm install
+      elif [ "$nvmrc_node_version" != "$node_version" ]; then
+        nvm use
+      fi
+    elif [ "$node_version" != "$(nvm version default)" ]; then
+      echo "Reverting to nvm default version"
+      nvm use default
     fi
-  elif [ "$node_version" != "$(nvm version default)" ]; then
-    echo "Reverting to nvm default version"
-    nvm use default
-  fi
+  }
+  add-zsh-hook chpwd load-nvmrc
+  load-nvmrc
+
+  # NVM aliases
+  alias oldnpm="$(nvm which current | sed 's/\/node$/\/npm/')"
+fi
+
+# Helper functions to switch between Rabbet and non-Rabbet modes
+rabbet-on() {
+  sed -i 's/export USE_RABBET=.*/export USE_RABBET=true/' ~/.zshrc
+  echo "✓ Rabbet mode activated (using asdf)"
+  echo "Please restart your terminal or run: source ~/.zshrc"
 }
-add-zsh-hook chpwd load-nvmrc
-load-nvmrc
+
+rabbet-off() {
+  sed -i 's/export USE_RABBET=.*/export USE_RABBET=false/' ~/.zshrc
+  echo "✓ Rabbet mode deactivated (using nvm)"
+  echo "Please restart your terminal or run: source ~/.zshrc"
+}
 
 PATH=~/.console-ninja/.bin:$PATH
-
-alias oldnpm="$(nvm which current | sed 's/\/node$/\/npm/')"
-# alias npmold="$(nvm which current | sed 's/\/node$/\/npm/')"
-# alias npxold="$(nvm which current | sed 's/\/node$/\/npx/')"
 
 
 # pnpm
