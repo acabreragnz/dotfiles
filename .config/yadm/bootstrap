@@ -5,7 +5,7 @@ set -o pipefail  # Fallar en pipes si algún comando falla
 # ==========================================
 # Variables Globales
 # ==========================================
-TOTAL_STEPS=16
+TOTAL_STEPS=19
 CURRENT_STEP=0
 APT_UPDATED=false
 TEMP_FILES=()
@@ -499,6 +499,128 @@ fi
 log "SUCCESS" "Cheese instalado. Ejecuta 'cheese' para probar tu webcam Brio 500."
 
 # ==========================================
+# SECCIÓN: Screenshot Tool (Satty)
+# ==========================================
+compile_satty_from_source() {
+  local SATTY_VERSION="$1"
+  local SATTY_BIN="$2"
+
+  log "INFO" "Compilando Satty ${SATTY_VERSION} desde source..."
+
+  # Instalar dependencias de compilación
+  sudo apt install -y libgtk-4-dev libadwaita-1-dev
+
+  # Clonar repositorio
+  local BUILD_DIR="/tmp/satty-build-$$"
+  if ! git clone --depth 1 --branch "$SATTY_VERSION" https://github.com/Satty-org/Satty.git "$BUILD_DIR"; then
+    log "ERROR" "Fallo al clonar repositorio Satty"
+    return 1
+  fi
+
+  # Compilar
+  log "INFO" "Compilando... (esto puede tomar varios minutos)"
+  if ! (cd "$BUILD_DIR" && make build-release); then
+    log "ERROR" "Fallo al compilar Satty"
+    rm -rf "$BUILD_DIR"
+    return 1
+  fi
+
+  # Instalar binario
+  mkdir -p "$HOME/.local/bin"
+  cp "$BUILD_DIR/target/release/satty" "$SATTY_BIN"
+  chmod +x "$SATTY_BIN"
+
+  # Limpiar
+  rm -rf "$BUILD_DIR"
+
+  log "SUCCESS" "Satty compilado e instalado: $("$SATTY_BIN" --version)"
+  return 0
+}
+
+install_screenshot_tools() {
+  step "Instalando herramientas de screenshot"
+
+  # Instalar dependencias APT
+  log "INFO" "Instalando dependencias..."
+  ensure_apt_updated
+  sudo apt install -y gnome-screenshot grim slurp wl-clipboard
+
+  # Verificar e instalar Satty
+  local SATTY_VERSION="v0.20.1"
+  local SATTY_BIN="$HOME/.local/bin/satty"
+
+  if [ -f "$SATTY_BIN" ]; then
+    local INSTALLED_VERSION=$("$SATTY_BIN" --version 2>/dev/null | awk '{print $2}' || echo "unknown")
+    if [ "$INSTALLED_VERSION" = "${SATTY_VERSION#v}" ]; then
+      log "INFO" "Satty $INSTALLED_VERSION ya instalado"
+      return 0
+    fi
+  fi
+
+  # Compilar desde source
+  compile_satty_from_source "$SATTY_VERSION" "$SATTY_BIN"
+}
+
+configure_screenshot_keybindings() {
+  step "Configurando atajos de screenshot"
+
+  # Deshabilitar atajos nativos
+  log "INFO" "Deshabilitando atajos nativos..."
+  gsettings set org.gnome.shell.keybindings screenshot '[]'
+  gsettings set org.gnome.shell.keybindings screenshot-window '[]'
+  gsettings set org.gnome.shell.keybindings show-screenshot-ui '[]'
+
+  # Configurar atajo personalizado
+  log "INFO" "Configurando atajo Print..."
+  local SCREENSHOT_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot/"
+  local CURRENT_BINDINGS=$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings)
+
+  if [[ ! "$CURRENT_BINDINGS" =~ "screenshot" ]]; then
+    # Limpiar y agregar nuevo atajo (preservar claude y warp si existen)
+    local NEW_BINDINGS="['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/warp/']"
+    gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$NEW_BINDINGS"
+  fi
+
+  gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$SCREENSHOT_PATH" name 'Screenshot con Satty'
+  gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$SCREENSHOT_PATH" command "$HOME/.local/bin/screenshot"
+  gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$SCREENSHOT_PATH" binding 'Print'
+
+  log "SUCCESS" "Atajo Print configurado"
+}
+
+verify_screenshot_setup() {
+  step "Verificando configuración de screenshot"
+
+  # Verificar binarios
+  if [ ! -x "$HOME/.local/bin/satty" ]; then
+    log "ERROR" "Satty no encontrado"
+    return 1
+  fi
+
+  if [ ! -x "$HOME/.local/bin/screenshot" ]; then
+    log "ERROR" "Script screenshot no encontrado"
+    return 1
+  fi
+
+  if ! command -v gnome-screenshot >/dev/null; then
+    log "ERROR" "gnome-screenshot no instalado"
+    return 1
+  fi
+
+  # Crear directorio de salida
+  mkdir -p "$HOME/Pictures"
+
+  log "SUCCESS" "Screenshot configurado correctamente"
+  log "INFO" "  - Satty: $("$HOME/.local/bin/satty" --version)"
+  log "INFO" "  - Atajo: Print → $HOME/.local/bin/screenshot"
+}
+
+# Ejecutar instalación y configuración de screenshot
+install_screenshot_tools
+configure_screenshot_keybindings
+verify_screenshot_setup
+
+# ==========================================
 # SECCIÓN: Limpieza del Sistema
 # ==========================================
 step "Limpiando sistema"
@@ -524,12 +646,18 @@ if [ -f "$HOME/.config/yadm/scripts/security-hardening.sh" ]; then
 fi
 
 # Autenticación biométrica (huella dactilar)
-log "INFO" "Configurando autenticación biométrica..."
-if [ -f "$HOME/.config/yadm/scripts/setup-fingerprint-auth.sh" ]; then
-  # Ejecutar con --skip-enroll para no re-registrar si ya existen huellas
-  bash "$HOME/.config/yadm/scripts/setup-fingerprint-auth.sh" --skip-enroll
+log "INFO" "Verificando autenticación biométrica..."
+if command -v fprintd-list >/dev/null 2>&1; then
+  if fprintd-list "$USER" 2>/dev/null | grep -q "enrolled"; then
+    FINGERPRINT_COUNT=$(fprintd-list "$USER" 2>/dev/null | grep -c "finger:" || echo 0)
+    log "SUCCESS" "Autenticación por huella activa (${FINGERPRINT_COUNT} huella(s) registrada(s))"
+  else
+    log "INFO" "No hay huellas registradas"
+    log "INFO" "Para registrar huellas ejecuta: bash ~/.config/yadm/scripts/setup-fingerprint-auth.sh"
+  fi
 else
-  log "WARNING" "Script de fingerprint no encontrado, saltando..."
+  log "INFO" "fprintd no instalado (autenticación por huella disponible)"
+  log "INFO" "Para configurar ejecuta: bash ~/.config/yadm/scripts/setup-fingerprint-auth.sh"
 fi
 
 log "SUCCESS" "Configuraciones de seguridad aplicadas."
