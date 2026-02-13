@@ -112,7 +112,14 @@ alias ccd="claude --dangerously-skip-permissions"
 alias ccp="claude -p"
 alias ccc="claude -c"
 alias ccr="claude -r"
+alias ccdc="claude --dangerously-skip-permissions -c"
+alias ccdr="claude --dangerously-skip-permissions -r"
 alias ccpt="claude -p --no-session-persistence --model haiku --settings '{\"alwaysThinkingEnabled\":false}'"
+
+### OpenCode CLI aliases
+alias oc="opencode"
+alias ocr="opencode run"
+alias occ="opencode --continue"
 
 # alias npm=pnpm
 alias pn=pnpm
@@ -263,3 +270,4 @@ export PATH=$PATH:$HOME/.dotnet:$HOME/.dotnet/tools
 
 # opencode
 export PATH=$HOME/.opencode/bin:$PATH
+export PATH="$HOME/.local/bin:$PATH"
