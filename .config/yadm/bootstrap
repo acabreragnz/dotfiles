@@ -575,17 +575,27 @@ configure_screenshot_keybindings() {
   local SCREENSHOT_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot/"
   local CURRENT_BINDINGS=$(gsettings get org.gnome.settings-daemon.plugins.media-keys custom-keybindings)
 
+  local SCREENSHOT_FULL_PATH="/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot-full/"
+
   if [[ ! "$CURRENT_BINDINGS" =~ "screenshot" ]]; then
-    # Limpiar y agregar nuevo atajo (preservar claude y warp si existen)
-    local NEW_BINDINGS="['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/warp/']"
+    local NEW_BINDINGS="['/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot-full/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/claude/', '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/warp/']"
+    gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$NEW_BINDINGS"
+  elif [[ ! "$CURRENT_BINDINGS" =~ "screenshot-full" ]]; then
+    local NEW_BINDINGS=$(echo "$CURRENT_BINDINGS" | sed "s|]|, '/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/screenshot-full/']|")
     gsettings set org.gnome.settings-daemon.plugins.media-keys custom-keybindings "$NEW_BINDINGS"
   fi
 
+  # Print → selección de área
   gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$SCREENSHOT_PATH" name 'Screenshot con Satty'
   gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$SCREENSHOT_PATH" command "$HOME/.local/bin/screenshot"
   gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$SCREENSHOT_PATH" binding 'Print'
 
-  log "SUCCESS" "Atajo Print configurado"
+  # Shift+Print → pantalla completa (preserva foco de popups/dropdowns)
+  gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$SCREENSHOT_FULL_PATH" name 'Screenshot Full (preserva foco)'
+  gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$SCREENSHOT_FULL_PATH" command "$HOME/.local/bin/screenshot-full"
+  gsettings set org.gnome.settings-daemon.plugins.media-keys.custom-keybinding:"$SCREENSHOT_FULL_PATH" binding '<Shift>Print'
+
+  log "SUCCESS" "Atajos configurados: Print (área) y Shift+Print (full)"
 }
 
 verify_screenshot_setup() {
@@ -602,6 +612,11 @@ verify_screenshot_setup() {
     return 1
   fi
 
+  if [ ! -x "$HOME/.local/bin/screenshot-full" ]; then
+    log "ERROR" "Script screenshot-full no encontrado"
+    return 1
+  fi
+
   if ! command -v gnome-screenshot >/dev/null; then
     log "ERROR" "gnome-screenshot no instalado"
     return 1
@@ -612,7 +627,8 @@ verify_screenshot_setup() {
 
   log "SUCCESS" "Screenshot configurado correctamente"
   log "INFO" "  - Satty: $("$HOME/.local/bin/satty" --version)"
-  log "INFO" "  - Atajo: Print → $HOME/.local/bin/screenshot"
+  log "INFO" "  - Print → selección de área"
+  log "INFO" "  - Shift+Print → pantalla completa (preserva foco)"
 }
 
 # Ejecutar instalación y configuración de screenshot

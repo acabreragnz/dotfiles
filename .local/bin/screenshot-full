@@ -1,0 +1,17 @@
+#!/bin/bash
+# Full screen screenshot for preserving focus (popups, dropdowns, tooltips)
+# gnome-screenshot captures full screen without stealing focus, satty handles cropping
+
+TEMP_FILE=$(mktemp /tmp/screenshot-XXXXXX.png)
+
+# Capture full screen instantly (no area selection = no focus change)
+gnome-screenshot -f "$TEMP_FILE"
+
+if [ -f "$TEMP_FILE" ] && [ -s "$TEMP_FILE" ]; then
+    ~/.local/bin/satty --filename "$TEMP_FILE" --fullscreen --copy-command wl-copy --early-exit --output-filename ~/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png
+    rm -f "$TEMP_FILE"
+else
+    echo "Screenshot capture failed"
+    rm -f "$TEMP_FILE"
+    exit 1
+fi
