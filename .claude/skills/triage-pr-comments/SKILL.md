@@ -1,7 +1,6 @@
 ---
 name: triage-pr-comments
 description: Use when the user asks to review, check, triage, or analyze comments on a GitHub PR — including when they share a PR URL and ask about its review comments or what to fix.
-disable-model-invocation: true
 context: fork
 agent: general-purpose
 allowed-tools: Bash(git *), Bash(gh *), Read, Grep, Glob
