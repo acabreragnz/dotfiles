@@ -129,4 +129,4 @@ git worktree remove --force .claude/worktrees/pr-<PR_NUMBER>
 
 After outputting the triage report, always append this note:
 
-> **Next step:** To implement the fixes, create a dedicated worktree from the PR branch — never commit fix work directly to the current branch. Use `EnterWorktree` or `git worktree add` on a new branch based on `<HEAD_BRANCH>` before making any changes.
+> **Next step:** To implement the fixes, create a dedicated worktree from the PR branch — never commit or push fix work from the current branch. Use `EnterWorktree` or `git worktree add` on a new branch based on `<HEAD_BRANCH>` before making any changes. All commits and pushes must happen from inside that worktree.
