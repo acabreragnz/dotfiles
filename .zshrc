@@ -115,6 +115,8 @@ alias ccr="claude -r"
 alias ccdc="claude --dangerously-skip-permissions -c"
 alias ccdr="claude --dangerously-skip-permissions -r"
 alias ccpt="claude -p --no-session-persistence --model haiku --settings '{\"alwaysThinkingEnabled\":false}'"
+alias ccw="claude --worktree"
+alias ccdw="claude --dangerously-skip-permissions --worktree"
 
 ### OpenCode CLI aliases
 alias oc="opencode"
