@@ -43,3 +43,22 @@ description: Use when reviewing or triaging comments on a GitHub PR.
 ```
 
 Keep steps action-oriented. Inline bash blocks only when the command is non-obvious.
+
+## $ARGUMENTS — best practices
+
+- Use `$ARGUMENTS` **once**, embedded naturally in the instruction text.
+- Add `argument-hint: [descripción]` to frontmatter so it shows in autocomplete.
+- **Never repeat `$ARGUMENTS` in conditional logic** — if it also appears inside backticks (e.g. `` Si `$ARGUMENTS` contiene texto... ``), both instances get substituted and the logic becomes ambiguous when the argument is empty.
+
+```yaml
+# ❌ Bad — $ARGUMENTS appears twice, conditional becomes ambiguous
+**Foco:** $ARGUMENTS
+Si `$ARGUMENTS` contiene texto, priorizar...
+
+# ✅ Good — single use, embedded naturally
+If a focus was provided — $ARGUMENTS — prioritize learnings related to it.
+```
+
+## Reference
+
+- Official docs: https://code.claude.com/docs/en/skills
