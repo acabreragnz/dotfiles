@@ -118,6 +118,26 @@ alias ccpt="claude -p --no-session-persistence --model haiku --settings '{\"alwa
 alias ccw="claude --worktree"
 alias ccdw="claude --dangerously-skip-permissions --worktree"
 
+# gwtrm [--all]  — remove worktrees interactively (fzf) or all at once
+function gwtrm() {
+  local main_path
+  main_path=$(git worktree list | head -1 | awk '{print $1}')
+
+  if [[ "$1" == "--all" ]]; then
+    git worktree list | tail -n +2 | awk '{print $1}' | while read -r path; do
+      git worktree remove --force "$path" && echo "Removed: $path"
+    done
+    git worktree prune
+  else
+    git worktree list | tail -n +2 | awk '{print $1}' \
+      | fzf --multi --prompt="Select worktrees to remove > " \
+      | while read -r path; do
+          git worktree remove --force "$path" && echo "Removed: $path"
+        done
+    git worktree prune
+  fi
+}
+
 ### OpenCode CLI aliases
 alias oc="opencode"
 alias ocr="opencode run"
