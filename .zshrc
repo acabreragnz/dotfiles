@@ -116,6 +116,37 @@ alias ccdc="claude --dangerously-skip-permissions -c"
 alias ccdr="claude --dangerously-skip-permissions -r"
 alias ccpt="claude -p --no-session-persistence --model haiku --settings '{\"alwaysThinkingEnabled\":false}'"
 
+### Git worktree aliases (for Claude Code parallel tasks)
+alias gwtl="git worktree list"
+alias gwtp="git worktree prune"
+
+# gwta <branch> [path] — add a worktree; path defaults to ../worktrees/<branch>
+function gwta() {
+  local branch="$1"
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel)
+  local path="${2:-${repo_root}/../worktrees/${branch}}"
+  git worktree add "$path" "$branch" 2>/dev/null \
+    || git worktree add -b "$branch" "$path"
+  echo "Worktree ready at: $path"
+}
+
+# gwtrm <path> — remove a worktree and prune refs
+function gwtrm() {
+  git worktree remove --force "$1" && git worktree prune
+}
+
+# ccwt <branch> [path] — create worktree, cd into it, launch claude --dangerously-skip-permissions
+function ccwt() {
+  local branch="$1"
+  local repo_root
+  repo_root=$(git rev-parse --show-toplevel)
+  local path="${2:-${repo_root}/../worktrees/${branch}}"
+  git worktree add "$path" "$branch" 2>/dev/null \
+    || git worktree add -b "$branch" "$path"
+  cd "$path" && claude --dangerously-skip-permissions
+}
+
 ### OpenCode CLI aliases
 alias oc="opencode"
 alias ocr="opencode run"
@@ -271,3 +302,4 @@ export PATH=$PATH:$HOME/.dotnet:$HOME/.dotnet/tools
 # opencode
 export PATH=$HOME/.opencode/bin:$PATH
 export PATH="$HOME/.local/bin:$PATH"
+export GOOGLE_WORKSPACE_CLI_ACCOUNT=acabreragnz@gmail.com
