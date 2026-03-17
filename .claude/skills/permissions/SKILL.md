@@ -86,3 +86,15 @@ Después de editar, confirmar al usuario qué cambió:
 > ✓ Agregado `"mcp__figma__*"` a **allow** en `~/.claude/settings.json`
 
 Si hay dudas sobre si el JSON quedó válido, leer el archivo nuevamente para verificar.
+
+## Notas de versión relevantes
+
+### Compound bash commands — fix 2.1.77
+Antes de 2.1.77, cuando el usuario aceptaba "Always Allow" en un comando compuesto como `cd src && npm test`, CC guardaba una regla para el string completo → nunca volvía a matchear → regla muerta en allow.
+Desde 2.1.77, guarda una regla **por subcomando**.
+**Cómo detectar reglas muertas:** buscar en `allow` entradas `Bash(...)` que contengan `&&`, `||`, `;` o `|` — esas son candidatas a limpiar.
+
+### Comandos en allowlist interna de CC — desde 2.1.72
+Estos comandos fueron agregados al allowlist interno de Claude Code (no requieren entrada en settings.json):
+`lsof`, `pgrep`, `ss`, `fd`, `fdfind`, `tput`
+Se agregaron también al `allow` del usuario para consistencia y documentación explícita.
