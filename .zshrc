@@ -114,9 +114,12 @@ alias ccc="claude -c"
 alias ccr="claude -r"
 alias ccdc="claude --dangerously-skip-permissions -c"
 alias ccdr="claude --dangerously-skip-permissions -r"
-alias ccpt="claude -p --no-session-persistence --model haiku --settings '{\"alwaysThinkingEnabled\":false}'"
 alias ccw="claude --worktree"
 alias ccdw="claude --dangerously-skip-permissions --worktree"
+alias ccn='claude -n'
+alias ccdn='claude --dangerously-skip-permissions -n'
+alias ccwn='claude --worktree -n'
+alias ccql='claude --effort low'
 
 # gwtrm [--all]  — remove worktrees interactively (fzf) or all at once
 function gwtrm() {
@@ -129,11 +132,20 @@ function gwtrm() {
     done
     git worktree prune
   else
-    git worktree list | tail -n +2 | awk '{print $1}' \
-      | fzf --multi --prompt="Select worktrees to remove > " \
-      | while read -r path; do
-          git worktree remove --force "$path" && echo "Removed: $path"
-        done
+    local worktrees selected
+    worktrees=$(git worktree list | tail -n +2 | awk '{print $1}')
+    if [[ -z "$worktrees" ]]; then
+      echo "No secondary worktrees found."
+      return 0
+    fi
+    selected=$(echo "$worktrees" | fzf --multi --prompt="Select worktrees to remove > ")
+    if [[ -z "$selected" ]]; then
+      echo "Cancelled."
+      return 0
+    fi
+    echo "$selected" | while read -r path; do
+      git worktree remove --force "$path" && echo "Removed: $path"
+    done
     git worktree prune
   fi
 }
@@ -294,3 +306,5 @@ export PATH=$PATH:$HOME/.dotnet:$HOME/.dotnet/tools
 export PATH=$HOME/.opencode/bin:$PATH
 export PATH="$HOME/.local/bin:$PATH"
 export GOOGLE_WORKSPACE_CLI_ACCOUNT=acabreragnz@gmail.com
+export PATH="$HOME/.local/kitty.app/bin:$PATH"
+alias ccfork='kitten @ launch --type=tab --tab-title "Claude Branch" --cwd current claude --continue --fork-session'
