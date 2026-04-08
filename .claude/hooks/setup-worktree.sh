@@ -71,4 +71,10 @@ if [ -d "$CWD/.claude" ]; then
     echo "Copied .claude/ contents to worktree" >&2
 fi
 
+# Copy docs/tickets/ — gitignored so not checked out automatically
+if [ -d "$CWD/docs/tickets" ]; then
+    cp -r "$CWD/docs/tickets" "$WORKTREE_PATH/docs/tickets" 2>/dev/null || true
+    echo "Copied docs/tickets to worktree" >&2
+fi
+
 echo "$WORKTREE_PATH"
