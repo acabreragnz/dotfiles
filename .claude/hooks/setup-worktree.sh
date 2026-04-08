@@ -75,6 +75,16 @@ fi
 if [ -d "$CWD/docs/tickets" ]; then
     cp -r "$CWD/docs/tickets" "$WORKTREE_PATH/docs/tickets" 2>/dev/null || true
     echo "Copied docs/tickets to worktree" >&2
+
+    # Create CURRENT.md symlink pointing to the ticket file for this branch
+    TICKET_NUM=$(echo "$NAME" | grep -oiE 'eng-[0-9]+' | head -1 | tr '[:lower:]' '[:upper:]')
+    if [ -n "$TICKET_NUM" ]; then
+        TICKET_FILE="$WORKTREE_PATH/docs/tickets/${TICKET_NUM}.md"
+        if [ -f "$TICKET_FILE" ]; then
+            ln -sf "${TICKET_NUM}.md" "$WORKTREE_PATH/docs/tickets/CURRENT.md"
+            echo "Created CURRENT.md -> ${TICKET_NUM}.md" >&2
+        fi
+    fi
 fi
 
 echo "$WORKTREE_PATH"
