@@ -114,13 +114,11 @@ alias ccc="claude -c"
 alias ccr="claude -r"
 alias ccdc="claude --dangerously-skip-permissions -c"
 alias ccdr="claude --dangerously-skip-permissions -r"
-alias ccw="claude --worktree"
-alias ccdw="claude --dangerously-skip-permissions --worktree"
 alias ccn='claude -n'
 alias ccdn='claude --dangerously-skip-permissions -n'
-alias ccwn='claude --worktree -n'
 alias ccl='claude --effort low'
 alias ccq='claude -p --effort low'
+
 
 # gwtrm [--all]  — remove worktrees interactively (fzf) or all at once
 function gwtrm() {
