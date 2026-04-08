@@ -29,17 +29,20 @@ fi
 
 mkdir -p "$CWD/.claude/worktrees"
 
-# Resolve which branch to use:
-# 1. Exact match
-# 2. Common prefix matches (feature/, fix/, chore/, docs/, test/, backup/)
-# 3. Fall back to creating a new worktree-$NAME branch from origin/master
+# Resolve which branch to use.
+# ccwn strips the prefix (feature/, fix/, ...) and truncates to 64 chars before
+# passing the name here. So we reverse the process: for every local branch, apply
+# the same strip+truncate and check if it matches NAME.
 RESOLVED_BRANCH=""
-for candidate in "$NAME" "feature/$NAME" "fix/$NAME" "chore/$NAME" "docs/$NAME" "test/$NAME" "backup/$NAME"; do
-    if git -C "$CWD" show-ref --verify --quiet "refs/heads/$candidate" 2>/dev/null; then
-        RESOLVED_BRANCH="$candidate"
+while IFS= read -r branch; do
+    stripped="${branch#*/}"          # strip feature/, fix/, chore/, etc.
+    truncated="${stripped:0:64}"
+    truncated="${truncated%-}"       # strip trailing dash if mid-word cut
+    if [ "$truncated" = "$NAME" ] || [ "$stripped" = "$NAME" ] || [ "$branch" = "$NAME" ]; then
+        RESOLVED_BRANCH="$branch"
         break
     fi
-done
+done < <(git -C "$CWD" branch --format='%(refname:short)' 2>/dev/null)
 
 if [ -n "$RESOLVED_BRANCH" ]; then
     echo "Checking out existing branch: $RESOLVED_BRANCH" >&2
