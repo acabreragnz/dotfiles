@@ -84,6 +84,7 @@
       "Bash(gh browse:*)",
       "Write(~/.claude/plans/**)",
       "Edit(~/.claude/plans/**)",
+      "Bash(docker exec:*)",
       "mcp__chrome-devtools__*",
       "mcp__plugin_context7_context7__*",
       "mcp__figma__get_screenshot",
@@ -131,7 +132,8 @@
       "mcp__untitledui__get_component_bundle",
       "Skill",
       "WebSearch",
-      "WebFetch"
+      "WebFetch",
+      "mcp__plugin_figma_figma__*"
     ],
     "deny": [
       "Read(**/.env*)",
@@ -227,7 +229,6 @@
       "Bash(docker build:*)",
       "Bash(docker pull:*)",
       "Bash(docker push:*)",
-      "Bash(docker exec:*)",
       "Bash(docker create:*)",
       "Bash(docker rm:*)",
       "Bash(docker rmi:*)",
@@ -266,15 +267,63 @@
       "mcp__figma__add_code_connect_map",
       "mcp__figma__send_code_connect_mappings",
       "mcp__figma__generate_figma_design"
+    ],
+    "defaultMode": "bypassPermissions",
+    "additionalDirectories": [
+      "/home/tcabrera/dev/rabbet/lift/.claude/worktrees"
     ]
   },
   "model": "sonnet",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/pre-tool-guard.sh"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "ffplay -nodisp -autoexit -loglevel quiet \"/usr/share/code/resources/app/out/vs/platform/accessibilitySignal/browser/media/chatUserActionRequired.mp3\" &"
+          }
+        ]
+      }
+    ],
+    "WorktreeCreate": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/setup-worktree.sh"
+          }
+        ]
+      }
+    ],
+    "WorktreeRemove": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "~/.claude/hooks/cleanup-worktree.sh"
+          }
+        ]
+      }
+    ]
+  },
   "statusLine": {
     "type": "command",
     "command": "~/.claude/statusline.sh",
     "padding": 0
   },
   "enabledPlugins": {
+    "linear@claude-plugins-official": false,
     "figma@claude-plugins-official": true,
     "slack@claude-plugins-official": true,
     "Notion@claude-plugins-official": false,
@@ -311,28 +360,5 @@
   "alwaysThinkingEnabled": true,
   "autoUpdatesChannel": "latest",
   "voiceEnabled": true,
-  "skipDangerousModePermissionPrompt": true,
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "~/.claude/hooks/pre-tool-guard.sh"
-          }
-        ]
-      }
-    ],
-    "Notification": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "ffplay -nodisp -autoexit -loglevel quiet \"/usr/share/code/resources/app/out/vs/platform/accessibilitySignal/browser/media/chatUserActionRequired.mp3\" &"
-          }
-        ]
-      }
-    ]
-  }
+  "skipDangerousModePermissionPrompt": true
 }
