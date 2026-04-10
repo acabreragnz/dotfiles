@@ -1,0 +1,8 @@
+[Unit]
+Description=Anonymize faces in images dropped into .inbox
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/anonymize-inbox.sh
+StandardOutput=journal
+StandardError=journal

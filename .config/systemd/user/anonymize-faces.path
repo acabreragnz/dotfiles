@@ -1,0 +1,12 @@
+[Unit]
+Description=Watch ~/.inbox for new images to anonymize
+
+[Path]
+PathExistsGlob=%h/Pictures/.inbox/*.jpg
+PathExistsGlob=%h/Pictures/.inbox/*.jpeg
+PathExistsGlob=%h/Pictures/.inbox/*.png
+PathExistsGlob=%h/Pictures/.inbox/*.webp
+Unit=anonymize-faces.service
+
+[Install]
+WantedBy=default.target
