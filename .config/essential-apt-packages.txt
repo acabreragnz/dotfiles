@@ -21,3 +21,20 @@ flameshot
 
 # Multimedia
 ffmpeg
+
+# Utilidades CLI
+jq
+xclip
+xdotool
+ydotool
+tree
+rclone
+pipx
+
+# Android / Mobile
+adb
+fastboot
+scrcpy
+
+# AppImage support
+libfuse2t64

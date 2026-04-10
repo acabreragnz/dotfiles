@@ -5,7 +5,7 @@ set -o pipefail  # Fallar en pipes si algún comando falla
 # ==========================================
 # Variables Globales
 # ==========================================
-TOTAL_STEPS=19
+TOTAL_STEPS=24
 CURRENT_STEP=0
 APT_UPDATED=false
 TEMP_FILES=()
@@ -635,6 +635,59 @@ verify_screenshot_setup() {
 install_screenshot_tools
 configure_screenshot_keybindings
 verify_screenshot_setup
+
+# ==========================================
+# SECCIÓN: Docker
+# ==========================================
+step "Instalando Docker"
+if [ -f "$HOME/.config/yadm/scripts/install-docker.sh" ]; then
+  bash "$HOME/.config/yadm/scripts/install-docker.sh"
+fi
+
+# ==========================================
+# SECCIÓN: Brave Browser
+# ==========================================
+step "Instalando Brave Browser"
+if [ -f "$HOME/.config/yadm/scripts/install-brave.sh" ]; then
+  bash "$HOME/.config/yadm/scripts/install-brave.sh"
+fi
+
+# ==========================================
+# SECCIÓN: pipx packages
+# ==========================================
+step "Instalando paquetes pipx"
+if command -v pipx >/dev/null 2>&1; then
+  for pkg in deface gnome-extensions-cli; do
+    if ! pipx list --short 2>/dev/null | grep -q "^$pkg "; then
+      log "INFO" "Instalando $pkg via pipx..."
+      pipx install "$pkg"
+    else
+      log "INFO" "$pkg ya instalado via pipx"
+    fi
+  done
+else
+  log "WARNING" "pipx no disponible, salteando paquetes pipx"
+fi
+
+# ==========================================
+# SECCIÓN: npm globals
+# ==========================================
+step "Instalando paquetes npm globales"
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+
+if command -v npm >/dev/null 2>&1; then
+  for pkg in "@googleworkspace/cli" "agent-device" "@google/gemini-cli" "@openai/codex"; do
+    if ! npm list -g --depth=0 2>/dev/null | grep -q "${pkg}@"; then
+      log "INFO" "Instalando $pkg globalmente..."
+      npm install -g "$pkg"
+    else
+      log "INFO" "$pkg ya instalado globalmente"
+    fi
+  done
+else
+  log "WARNING" "npm no disponible, salteando paquetes npm globales"
+fi
 
 # ==========================================
 # SECCIÓN: Limpieza del Sistema

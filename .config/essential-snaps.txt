@@ -8,3 +8,4 @@ vlc
 localsend
 firefox
 thunderbird
+shotcut
