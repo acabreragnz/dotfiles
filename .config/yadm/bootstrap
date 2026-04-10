@@ -5,7 +5,7 @@ set -o pipefail  # Fallar en pipes si algún comando falla
 # ==========================================
 # Variables Globales
 # ==========================================
-TOTAL_STEPS=24
+TOTAL_STEPS=25
 CURRENT_STEP=0
 APT_UPDATED=false
 TEMP_FILES=()
@@ -687,6 +687,19 @@ if command -v npm >/dev/null 2>&1; then
   done
 else
   log "WARNING" "npm no disponible, salteando paquetes npm globales"
+fi
+
+# ==========================================
+# SECCIÓN: Anonymize Faces (inbox watcher)
+# ==========================================
+step "Configurando anonymize-faces inbox watcher"
+mkdir -p "$HOME/Pictures/.inbox"
+mkdir -p "$HOME/Pictures/.inbox/done"
+chmod +x "$HOME/scripts/anonymize_faces.py" "$HOME/scripts/anonymize-inbox.sh" 2>/dev/null || true
+if systemctl --user enable --now anonymize-faces.path 2>/dev/null; then
+  log "SUCCESS" "anonymize-faces.path habilitado y activo"
+else
+  log "WARNING" "No se pudo habilitar anonymize-faces.path (puede requerir sesión gráfica)"
 fi
 
 # ==========================================
