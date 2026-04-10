@@ -216,52 +216,52 @@ def generate(input_path: Path, output_dir: Path):
         cv2.imwrite(str(orig), img)
         print(f"  → original.jpg")
 
-    # --- full-face ---
-    print("\n[full face — blur/box]")
+    # --- full-face (flat) ---
+    print("\n[full face — blur_box]")
     for label, bf in BLUR_BOX_LEVELS:
-        save(output_dir / "blur" / "box" / f"{label}.jpg",
+        save(output_dir / f"blur_box_{label}.jpg",
              apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_box_blur(im, b, _bf)),
              output_dir)
 
-    print("\n[full face — blur/gaussian]")
+    print("\n[full face — blur_gaussian]")
     for label, bf in BLUR_GAUSSIAN_LEVELS:
-        save(output_dir / "blur" / "gaussian" / f"{label}.jpg",
+        save(output_dir / f"blur_gaussian_{label}.jpg",
              apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_gaussian_blur(im, b, _bf)),
              output_dir)
 
-    print("\n[full face — blur/median]")
+    print("\n[full face — blur_median]")
     for label, bf in BLUR_MEDIAN_LEVELS:
-        save(output_dir / "blur" / "median" / f"{label}.jpg",
+        save(output_dir / f"blur_median_{label}.jpg",
              apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_median_blur(im, b, _bf)),
              output_dir)
 
-    print("\n[full face — mosaic/median]")
+    print("\n[full face — mosaic_median]")
     for pct in MOSAIC_PCTS:
-        save(output_dir / "mosaic" / "median" / f"{pct:02d}pct.jpg",
+        save(output_dir / f"mosaic_median_{pct:02d}pct.jpg",
              apply_to_all(img, boxes, lambda im, b, _p=pct: apply_mosaic_median(im, b, _p)),
              output_dir)
 
-    # --- partial regions ---
-    print("\n[face/eyes_band]")
+    # --- partial regions (flat inside face/) ---
+    face_dir = output_dir / "face"
+    print("\n[face/ — partial regions]")
     for box, lm in zip(boxes, landmarks):
         band = region_eyes_band(box, lm, img.shape)
         eyes_nose = region_eyes_nose(box, lm, img.shape)
 
         for label, bf in BLUR_GAUSSIAN_LEVELS:
-            save(output_dir / "face" / "eyes_band" / "blur" / "gaussian" / f"{label}.jpg",
+            save(face_dir / f"eyes_band_blur_gaussian_{label}.jpg",
                  apply_gaussian_blur(img, band, bf), output_dir)
 
         for pct in MOSAIC_PCTS:
-            save(output_dir / "face" / "eyes_band" / "mosaic" / "median" / f"{pct:02d}pct.jpg",
+            save(face_dir / f"eyes_band_mosaic_median_{pct:02d}pct.jpg",
                  apply_mosaic_median(img, band, pct), output_dir)
 
-        print("\n[face/eyes_nose]")
         for label, bf in BLUR_GAUSSIAN_LEVELS:
-            save(output_dir / "face" / "eyes_nose" / "blur" / "gaussian" / f"{label}.jpg",
+            save(face_dir / f"eyes_nose_blur_gaussian_{label}.jpg",
                  apply_gaussian_blur(img, eyes_nose, bf), output_dir)
 
         for pct in MOSAIC_PCTS:
-            save(output_dir / "face" / "eyes_nose" / "mosaic" / "median" / f"{pct:02d}pct.jpg",
+            save(face_dir / f"eyes_nose_mosaic_median_{pct:02d}pct.jpg",
                  apply_mosaic_median(img, eyes_nose, pct), output_dir)
 
     print(f"\nDone. Output: {output_dir}")
