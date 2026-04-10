@@ -46,15 +46,6 @@ def _odd(n: int) -> int:
     return n if n % 2 == 1 else n + 1
 
 
-def apply_box_blur(img: np.ndarray, box, bf: int) -> np.ndarray:
-    x1, y1, x2, y2 = box
-    kw = max(1, abs(x2 - x1) // bf)
-    kh = max(1, abs(y2 - y1) // bf)
-    out = img.copy()
-    out[y1:y2, x1:x2] = cv2.blur(img[y1:y2, x1:x2], (kw, kh))
-    return out
-
-
 def apply_gaussian_blur(img: np.ndarray, box, bf: int) -> np.ndarray:
     x1, y1, x2, y2 = box
     kw = _odd(max(1, abs(x2 - x1) // bf))
@@ -128,7 +119,7 @@ def region_eyes_band(box, lm, img_shape):
     x1, y1, x2, y2 = box
     face_h = y2 - y1
     eye_cy = (lm["eye_l"][1] + lm["eye_r"][1]) // 2
-    return (x1, max(0, eye_cy - int(face_h * 0.18)), x2, min(H, eye_cy + int(face_h * 0.18)))
+    return (x1, max(0, eye_cy - int(face_h * 0.18)), x2, min(H, eye_cy + int(face_h * 0.10)))
 
 
 def region_eyes_nose(box, lm, img_shape):
@@ -136,6 +127,21 @@ def region_eyes_nose(box, lm, img_shape):
     x1, y1, x2, _ = box
     face_h = box[3] - y1
     return (x1, y1, x2, min(H, lm["nose"][1] + int(face_h * 0.10)))
+
+
+def region_eyes_band_erratic(box, lm, img_shape):
+    """Banda de ojos desplazada hacia arriba — simula pixelación mal aplicada.
+    El bloque tapa la frente pero deja los ojos expuestos → persona identificable."""
+    H, _ = img_shape[:2]
+    x1, _, x2, _ = box
+    face_h = box[3] - box[1]
+    eye_cy = (lm["eye_l"][1] + lm["eye_r"][1]) // 2
+    band_h = int(face_h * 0.12)
+    # Desplazar la banda hacia arriba: en vez de centrar en los ojos,
+    # la centramos ~40% de la altura de cara más arriba
+    shift = int(face_h * 0.14)
+    center = eye_cy - shift
+    return (x1, max(0, center - band_h), x2, max(0, center + band_h))
 
 
 # ---------------------------------------------------------------------------
@@ -151,30 +157,24 @@ def load_as_bgr(path: Path) -> np.ndarray:
 # Config
 # ---------------------------------------------------------------------------
 
-BLUR_BOX_LEVELS = [
-    ("01_apenas",   30),
-    ("02_muy_leve", 20),
-    ("03_leve",     15),
-    ("04_sutil",    12),
-]
-
 BLUR_GAUSSIAN_LEVELS = [
-    ("02_muy_leve", 20),
-    ("03_leve",     15),
-    ("04_sutil",    12),
-    ("05_notorio",  10),
-    ("06_medio",     8),
-    ("07_suave",     4),
+    ("04_sutil",     15),
+    ("05_notorio",   10),
+    ("06_fuerte",     7),
+    ("07_muy_fuerte", 5),
+    ("08_extremo",    3),
 ]
 
 BLUR_MEDIAN_LEVELS = [
-    ("01_apenas",   30),
-    ("02_muy_leve", 20),
-    ("03_leve",     15),
-    ("04_sutil",    12),
+    ("03_leve",       15),
+    ("04_sutil",      12),
+    ("05_notorio",    10),
+    ("06_fuerte",      7),
+    ("07_muy_fuerte",  5),
 ]
 
-MOSAIC_PCTS = [5, 10, 15, 20, 30, 40]
+MOSAIC_PCTS       = [8, 10, 15, 20]   # root — bloques grandes, anonimato real
+MOSAIC_FACE_PCTS  = [7, 10, 15]    # face/ — región chica, bloques más finos
 
 
 # ---------------------------------------------------------------------------
@@ -217,12 +217,6 @@ def generate(input_path: Path, output_dir: Path):
         print(f"  → original.jpg")
 
     # --- full-face (flat) ---
-    print("\n[full face — blur_box]")
-    for label, bf in BLUR_BOX_LEVELS:
-        save(output_dir / f"blur_box_{label}.jpg",
-             apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_box_blur(im, b, _bf)),
-             output_dir)
-
     print("\n[full face — blur_gaussian]")
     for label, bf in BLUR_GAUSSIAN_LEVELS:
         save(output_dir / f"blur_gaussian_{label}.jpg",
@@ -245,24 +239,73 @@ def generate(input_path: Path, output_dir: Path):
     face_dir = output_dir / "face"
     print("\n[face/ — partial regions]")
     for box, lm in zip(boxes, landmarks):
-        band = region_eyes_band(box, lm, img.shape)
+        band      = region_eyes_band(box, lm, img.shape)
         eyes_nose = region_eyes_nose(box, lm, img.shape)
+        erratic   = region_eyes_band_erratic(box, lm, img.shape)
 
+        # eyes_band
         for label, bf in BLUR_GAUSSIAN_LEVELS:
             save(face_dir / f"eyes_band_blur_gaussian_{label}.jpg",
                  apply_gaussian_blur(img, band, bf), output_dir)
-
-        for pct in MOSAIC_PCTS:
+        for pct in MOSAIC_FACE_PCTS:
             save(face_dir / f"eyes_band_mosaic_median_{pct:02d}pct.jpg",
                  apply_mosaic_median(img, band, pct), output_dir)
 
+        # eyes_nose
         for label, bf in BLUR_GAUSSIAN_LEVELS:
             save(face_dir / f"eyes_nose_blur_gaussian_{label}.jpg",
                  apply_gaussian_blur(img, eyes_nose, bf), output_dir)
-
-        for pct in MOSAIC_PCTS:
+        for pct in MOSAIC_FACE_PCTS:
             save(face_dir / f"eyes_nose_mosaic_median_{pct:02d}pct.jpg",
                  apply_mosaic_median(img, eyes_nose, pct), output_dir)
+
+        # erratic — pixelación desplazada (deja ojos expuestos), solo versión fuerte
+        erratic_dir = face_dir / "erratic"
+        pct = MOSAIC_FACE_PCTS[-1]
+        save(erratic_dir / f"mosaic_median_{pct:02d}pct.jpg",
+             apply_mosaic_median(img, erratic, pct), output_dir)
+        label, bf = BLUR_GAUSSIAN_LEVELS[-1]
+        save(erratic_dir / f"blur_gaussian_{label}.jpg",
+             apply_gaussian_blur(img, erratic, bf), output_dir)
+
+        # story — revelación progresiva en bandas desde abajo
+        story_dir = face_dir / "story"
+        print("\n[face/story/ — revelación progresiva]")
+        x1, y1, x2, y2 = box
+        face_h = y2 - y1
+        eye_cy = (lm["eye_l"][1] + lm["eye_r"][1]) // 2
+        mouth_y = (lm["mouth_l"][1] + lm["mouth_r"][1]) // 2
+
+        story_pct = 15
+        full_pix = apply_to_all(img, boxes, lambda im, b, _p=story_pct: apply_mosaic_median(im, b, _p))
+
+        nose_reveal_y = lm["nose"][1] - int(face_h * 0.04)
+
+        # niveles de gaussian para la historia: fuerte → medio → suave
+        story_levels = [3, 7, 15]
+
+        def story_gaussian(bf):
+            return apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_gaussian_blur(im, b, _bf))
+
+        def reveal_mouth_nose(base, bf):
+            """Gaussian a bf sobre toda la cara, boca+nariz originales."""
+            r = story_gaussian(bf)
+            r[nose_reveal_y:y2, x1:x2] = img[nose_reveal_y:y2, x1:x2]
+            return r
+
+        step1 = story_gaussian(story_levels[0])
+        step2 = reveal_mouth_nose(step1, story_levels[0])
+        step3 = reveal_mouth_nose(step2, story_levels[1])
+        step4 = reveal_mouth_nose(step3, story_levels[2])
+
+        for fname, result in [
+            ("01_full",       step1),
+            ("02_mouth_nose", step2),
+            ("03_softer",     step3),
+            ("04_softest",    step4),
+            ("05_revealed",   img),
+        ]:
+            save(story_dir / f"{fname}.jpg", result, output_dir)
 
     print(f"\nDone. Output: {output_dir}")
 
