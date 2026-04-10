@@ -1,6 +1,6 @@
 #!/home/tcabrera/.local/share/pipx/venvs/deface/bin/python3
 """
-anonymize_faces.py — generate a full sample tree of face anonymization variants.
+pixelize.py — generate a full sample tree of face anonymization variants.
 
 Usage:
     anonymize_faces.py <image>
@@ -310,12 +310,41 @@ def generate(input_path: Path, output_dir: Path):
     print(f"\nDone. Output: {output_dir}")
 
 
+def generate_slim(input_path: Path, output_dir: Path):
+    """Genera solo 4 variantes: los 2 niveles más fuertes de gaussian y mosaic."""
+    print(f"Loading: {input_path}")
+    img = load_as_bgr(input_path)
+
+    print("Detecting faces...")
+    boxes, _ = detect_faces(img)
+    if not boxes:
+        print("No faces detected. Exiting.")
+        sys.exit(1)
+    print(f"  Found {len(boxes)} face(s)")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    for label, bf in BLUR_GAUSSIAN_LEVELS[-2:]:
+        save(output_dir / f"gaussian_{label}.jpg",
+             apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_gaussian_blur(im, b, _bf)),
+             output_dir)
+
+    for pct in MOSAIC_PCTS[-2:]:
+        save(output_dir / f"mosaic_{pct:02d}pct.jpg",
+             apply_to_all(img, boxes, lambda im, b, _p=pct: apply_mosaic_median(im, b, _p)),
+             output_dir)
+
+    print(f"\nDone. Output: {output_dir}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate face anonymization sample tree for a photo."
     )
     parser.add_argument("image", help="Path to input image (JPG, PNG, …)")
     parser.add_argument("--output-dir", help="Output directory (default: <stem>_anonymized next to input)")
+    parser.add_argument("--profile", choices=["full", "slim"], default="full",
+                        help="full = árbol completo (default), slim = 4 variantes fuertes")
     args = parser.parse_args()
 
     input_path = Path(args.image).expanduser().resolve()
@@ -323,13 +352,17 @@ def main():
         print(f"Error: file not found: {input_path}", file=sys.stderr)
         sys.exit(1)
 
+    suffix = "_slim" if args.profile == "slim" else "_anonymized"
     output_dir = (
         Path(args.output_dir).expanduser().resolve()
         if args.output_dir
-        else input_path.parent / f"{input_path.stem}_anonymized"
+        else input_path.parent / f"{input_path.stem}{suffix}"
     )
 
-    generate(input_path, output_dir)
+    if args.profile == "slim":
+        generate_slim(input_path, output_dir)
+    else:
+        generate(input_path, output_dir)
 
 
 if __name__ == "__main__":

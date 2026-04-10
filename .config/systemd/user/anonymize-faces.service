@@ -1,8 +1,8 @@
 [Unit]
-Description=Anonymize faces in images dropped into .inbox
+Description=Pixelize faces in images dropped into .pixelize/full or .pixelize/slim
 
 [Service]
 Type=oneshot
-ExecStart=%h/scripts/anonymize-inbox.sh
+ExecStart=%h/scripts/pixelize-inbox.sh
 StandardOutput=journal
 StandardError=journal
