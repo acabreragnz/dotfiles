@@ -205,7 +205,7 @@ def generate(input_path: Path, output_dir: Path):
     boxes, landmarks = detect_faces(img)
     if not boxes:
         print("No faces detected. Exiting.")
-        sys.exit(1)
+        sys.exit(0)
     print(f"  Found {len(boxes)} face(s)")
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -310,29 +310,42 @@ def generate(input_path: Path, output_dir: Path):
     print(f"\nDone. Output: {output_dir}")
 
 
-def generate_slim(input_path: Path, output_dir: Path):
-    """Genera solo 4 variantes: los 2 niveles más fuertes de gaussian y mosaic."""
+def generate_quick(input_path: Path, output_dir: Path):
+    """Genera variantes rápidas: gaussian extremo, mosaic máximo, y mouth+nose reveal."""
     print(f"Loading: {input_path}")
     img = load_as_bgr(input_path)
 
     print("Detecting faces...")
-    boxes, _ = detect_faces(img)
+    boxes, landmarks = detect_faces(img)
     if not boxes:
         print("No faces detected. Exiting.")
-        sys.exit(1)
+        sys.exit(0)
     print(f"  Found {len(boxes)} face(s)")
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for label, bf in BLUR_GAUSSIAN_LEVELS[-2:]:
-        save(output_dir / f"gaussian_{label}.jpg",
-             apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_gaussian_blur(im, b, _bf)),
-             output_dir)
+    orig = output_dir / "original.jpg"
+    if not orig.exists():
+        cv2.imwrite(str(orig), img)
+        print(f"  → original.jpg")
 
-    for pct in MOSAIC_PCTS[-2:]:
-        save(output_dir / f"mosaic_{pct:02d}pct.jpg",
-             apply_to_all(img, boxes, lambda im, b, _p=pct: apply_mosaic_median(im, b, _p)),
-             output_dir)
+    label, bf = BLUR_GAUSSIAN_LEVELS[-1]
+    gaussian = apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_gaussian_blur(im, b, _bf))
+    save(output_dir / f"gaussian_{label}.jpg", gaussian, output_dir)
+
+    pct = MOSAIC_PCTS[-1]
+    save(output_dir / f"mosaic_{pct:02d}pct.jpg",
+         apply_to_all(img, boxes, lambda im, b, _p=pct: apply_mosaic_median(im, b, _p)),
+         output_dir)
+
+    # gaussian extremo con boca+nariz liberadas
+    mouth_nose = gaussian.copy()
+    for box, lm in zip(boxes, landmarks):
+        x1, _, x2, y2 = box
+        face_h = box[3] - box[1]
+        nose_reveal_y = lm["nose"][1] - int(face_h * 0.04)
+        mouth_nose[nose_reveal_y:y2, x1:x2] = img[nose_reveal_y:y2, x1:x2]
+    save(output_dir / f"gaussian_{label}_mouth_nose.jpg", mouth_nose, output_dir)
 
     print(f"\nDone. Output: {output_dir}")
 
@@ -343,8 +356,8 @@ def main():
     )
     parser.add_argument("image", help="Path to input image (JPG, PNG, …)")
     parser.add_argument("--output-dir", help="Output directory (default: <stem>_anonymized next to input)")
-    parser.add_argument("--profile", choices=["full", "slim"], default="full",
-                        help="full = árbol completo (default), slim = 4 variantes fuertes")
+    parser.add_argument("--profile", choices=["full", "quick"], default="full",
+                        help="full = árbol completo (default), quick = 4 variantes fuertes")
     args = parser.parse_args()
 
     input_path = Path(args.image).expanduser().resolve()
@@ -352,15 +365,15 @@ def main():
         print(f"Error: file not found: {input_path}", file=sys.stderr)
         sys.exit(1)
 
-    suffix = "_slim" if args.profile == "slim" else "_anonymized"
+    suffix = "_quick" if args.profile == "quick" else "_anonymized"
     output_dir = (
         Path(args.output_dir).expanduser().resolve()
         if args.output_dir
         else input_path.parent / f"{input_path.stem}{suffix}"
     )
 
-    if args.profile == "slim":
-        generate_slim(input_path, output_dir)
+    if args.profile == "quick":
+        generate_quick(input_path, output_dir)
     else:
         generate(input_path, output_dir)
 

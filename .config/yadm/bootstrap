@@ -690,16 +690,17 @@ else
 fi
 
 # ==========================================
-# SECCIÓN: Anonymize Faces (inbox watcher)
+# SECCIÓN: Pixelize (inbox watcher)
 # ==========================================
-step "Configurando anonymize-faces inbox watcher"
-mkdir -p "$HOME/Pictures/.inbox"
-mkdir -p "$HOME/Pictures/.inbox/done"
-chmod +x "$HOME/scripts/anonymize_faces.py" "$HOME/scripts/anonymize-inbox.sh" 2>/dev/null || true
+step "Configurando pixelize inbox watcher"
+mkdir -p "$HOME/Pictures/.inbox/.pixelize/full/done"
+mkdir -p "$HOME/Pictures/.inbox/.pixelize/quick/done"
+chmod +x "$HOME/scripts/pixelize.py" "$HOME/scripts/pixelize-inbox.sh" 2>/dev/null || true
 if systemctl --user enable --now anonymize-faces.path 2>/dev/null; then
   log "SUCCESS" "anonymize-faces.path habilitado y activo"
 else
   log "WARNING" "No se pudo habilitar anonymize-faces.path (puede requerir sesión gráfica)"
+  log "INFO" "Para habilitarlo manualmente: systemctl --user enable --now anonymize-faces.path"
 fi
 
 # ==========================================
