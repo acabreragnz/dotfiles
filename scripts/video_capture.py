@@ -126,6 +126,7 @@ def detect_and_save(
     scale: float,
     noise_floor: int,
     capture_all: bool = False,
+    dedupe: bool = False,
     force_rotate: int | None = None,
 ) -> int:
     duration, rotation = get_video_info(video_path)
@@ -137,6 +138,8 @@ def detect_and_save(
     print(f"Video: {Path(video_path).name} | Duración: {duration:.1f}s | FPS análisis: {fps}")
     if capture_all:
         print(f"Modo: todas las capturas ({total_frames} frames esperados)")
+    elif dedupe:
+        print(f"Modo: todos los frames con cambio (sin cooldown, solo filtra estáticos)")
     else:
         print(f"Threshold: {threshold:.0%} píxeles | Cooldown: {cooldown}s | Escala análisis: {scale:.0%}")
     if rotation:
@@ -156,6 +159,17 @@ def detect_and_save(
             if capture_all:
                 _save_frame(frame, output_dir, stem, captured + 1, ts)
                 captured += 1
+                continue
+
+            if dedupe:
+                # Guardar todo excepto frames idénticos al anterior (solo ruido)
+                h, w = frame.shape[:2]
+                small_w, small_h = max(1, int(w * scale)), max(1, int(h * scale))
+                small = np.array(Image.fromarray(frame).resize((small_w, small_h), Image.BILINEAR))
+                if prev_small is None or pixel_change_ratio(small, prev_small, noise_floor) > 0:
+                    _save_frame(frame, output_dir, stem, captured + 1, ts)
+                    captured += 1
+                prev_small = small
                 continue
 
             # Downscale solo para análisis (más rápido)
@@ -237,6 +251,11 @@ def main():
         help="Capturar todos los frames sin detección de cambios"
     )
     parser.add_argument(
+        "--dedupe", "-d",
+        action="store_true",
+        help="Guardar todos los frames excepto los idénticos al anterior (sin cooldown)"
+    )
+    parser.add_argument(
         "--rotate",
         type=int,
         choices=[0, 90, 180, 270],
@@ -262,6 +281,7 @@ def main():
         scale=args.scale,
         noise_floor=args.noise,
         capture_all=args.all,
+        dedupe=args.dedupe,
         force_rotate=args.rotate,
     )
 
