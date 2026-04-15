@@ -27,6 +27,48 @@ import numpy as np
 from PIL import Image
 from tqdm import tqdm
 
+DEFACE_SITE = "/home/tcabrera/.local/share/pipx/venvs/deface/lib/python3.12/site-packages"
+
+
+def _load_pixelizer():
+    """Carga CenterFace y helpers de pixelize.py (lazy, solo si --pixelize)."""
+    import cv2
+    if DEFACE_SITE not in sys.path:
+        sys.path.insert(0, DEFACE_SITE)
+    from deface.centerface import CenterFace
+
+    model = CenterFace()
+
+    def detect(img_bgr):
+        dets, _ = model(img_bgr, threshold=0.2)
+        boxes = []
+        for det in dets:
+            rx1, ry1, rx2, ry2 = det[:4]
+            cx, cy = (rx1 + rx2) / 2, (ry1 + ry2) / 2
+            fw = (rx2 - rx1) * 1.3
+            fh = (ry2 - ry1) * 1.3
+            H, W = img_bgr.shape[:2]
+            boxes.append((
+                max(0, int(cx - fw / 2)), max(0, int(cy - fh / 2)),
+                min(W, int(cx + fw / 2)), min(H, int(cy + fh / 2)),
+            ))
+        return boxes
+
+    def mosaic(img_bgr, boxes, block_pct=20):
+        out = img_bgr.copy()
+        for x1, y1, x2, y2 in boxes:
+            block = max(2, int((x2 - x1) * block_pct / 100))
+            for y in range(y1, y2, block):
+                for x in range(x1, x2, block):
+                    bx2, by2 = min(x2, x + block), min(y2, y + block)
+                    color = np.median(
+                        img_bgr[y:by2, x:bx2].reshape(-1, 3), axis=0
+                    ).astype(np.uint8)
+                    out[y:by2, x:bx2] = color
+        return out
+
+    return cv2, detect, mosaic
+
 
 MODES = {
     #          fps    threshold  cooldown  noise
@@ -122,6 +164,7 @@ def process(
     mode: str,
     by_minute: bool,
     force_rotate: int | None,
+    pixelize: bool = False,
 ) -> int:
     fps_cfg, threshold, cooldown, noise = MODES[mode]
     duration, rotation, real_fps = get_video_info(video_path)
@@ -137,6 +180,10 @@ def process(
     print(f"Modo  : {mode} | FPS análisis: {fps} | Duración: {duration:.1f}s (~{total_frames} frames)")
     if rotation:
         print(f"Rot.  : {rotation}° corregida automáticamente")
+    if pixelize:
+        print(f"Pixelize: activado — cargando modelo de detección de caras...")
+        cv2, detect_faces, apply_mosaic = _load_pixelizer()
+        print(f"Pixelize: listo")
     print()
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -144,7 +191,7 @@ def process(
     prev_small = None
     last_ts    = -cooldown
     captured   = 0
-    SCALE      = 0.25  # downscale solo para comparación, no afecta el guardado
+    SCALE      = 0.25
 
     with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
         for ts, frame in stream_frames(video_path, fps, rotation):
@@ -156,16 +203,22 @@ def process(
             ))
 
             if prev_small is None:
-                _save(frame, output_dir, stem, captured + 1, ts, by_minute)
-                captured  += 1
+                should_save = True
+            else:
+                ratio      = pixel_change_ratio(small, prev_small, noise)
                 prev_small = small
-                last_ts    = ts
-                continue
+                should_save = ratio > threshold and (ts - last_ts) >= cooldown
 
-            ratio      = pixel_change_ratio(small, prev_small, noise)
-            prev_small = small
+            if prev_small is None:
+                prev_small = small
 
-            if ratio > threshold and (ts - last_ts) >= cooldown:
+            if should_save:
+                if pixelize:
+                    bgr   = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    boxes = detect_faces(bgr)
+                    if boxes:
+                        bgr   = apply_mosaic(bgr, boxes)
+                    frame = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
                 _save(frame, output_dir, stem, captured + 1, ts, by_minute)
                 captured += 1
                 last_ts   = ts
@@ -199,6 +252,8 @@ def main():
                         help="Forzar rotación en grados")
     parser.add_argument("--no-group", action="store_true",
                         help="No agrupar capturas por minuto")
+    parser.add_argument("--pixelize", "-p", action="store_true",
+                        help="Aplicar mosaico fuerte sobre caras detectadas en cada captura")
 
     args = parser.parse_args()
 
@@ -215,6 +270,7 @@ def main():
         mode=args.mode,
         by_minute=not args.no_group and args.mode == "full",
         force_rotate=args.rotate,
+        pixelize=args.pixelize,
     )
 
     print(f"\nGuardados {captured} frames en: {output_dir}/")
