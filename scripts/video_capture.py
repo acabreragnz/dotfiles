@@ -191,7 +191,8 @@ def main():
         print(f"Error: no se encontró el archivo '{args.video}'", file=sys.stderr)
         sys.exit(1)
 
-    output_dir = args.output or f"{Path(args.video).stem}_capturas"
+    video_path = Path(args.video).resolve()
+    output_dir = args.output or str(video_path.parent / f"{video_path.stem}_capturas")
 
     print(f"Threshold: {args.threshold} | Cooldown: {args.cooldown}s | FPS análisis: {args.fps}")
     print()
