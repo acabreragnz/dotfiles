@@ -31,8 +31,8 @@ from PIL import Image
 from tqdm import tqdm
 
 
-def get_video_info(video_path: str) -> tuple[float, int]:
-    """Devuelve (duración_seg, rotación_grados) del video."""
+def get_video_info(video_path: str) -> tuple[float, int, float]:
+    """Devuelve (duración_seg, rotación_grados, fps_real) del video."""
     probe = subprocess.run(
         ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", video_path],
         capture_output=True, text=True
@@ -40,6 +40,10 @@ def get_video_info(video_path: str) -> tuple[float, int]:
     info = json.loads(probe.stdout)
     stream = next(s for s in info["streams"] if s["codec_type"] == "video")
     duration = float(stream.get("duration", 0))
+
+    # FPS real (r_frame_rate es "num/den", e.g. "30000/1001")
+    num, den = stream.get("r_frame_rate", "25/1").split("/")
+    real_fps = round(int(num) / int(den), 3)
 
     # Rotation en tags (formato viejo) o side_data_list (formato nuevo)
     rotation = 0
@@ -50,7 +54,7 @@ def get_video_info(video_path: str) -> tuple[float, int]:
         if "rotation" in sd:
             rotation = -int(sd["rotation"])  # side_data usa signo opuesto
 
-    return duration, rotation
+    return duration, rotation, real_fps
 
 
 def _build_vf(fps: float, rotation: int) -> str:
@@ -129,13 +133,15 @@ def detect_and_save(
     dedupe: bool = False,
     force_rotate: int | None = None,
 ) -> int:
-    duration, rotation = get_video_info(video_path)
+    duration, rotation, real_fps = get_video_info(video_path)
     if force_rotate is not None:
         rotation = force_rotate
+    if (capture_all or dedupe) and fps == 4.0:
+        fps = real_fps  # usar FPS real del video en modos agresivos
     total_frames = int(duration * fps)
     stem = Path(video_path).stem
 
-    print(f"Video: {Path(video_path).name} | Duración: {duration:.1f}s | FPS análisis: {fps}")
+    print(f"Video: {Path(video_path).name} | Duración: {duration:.1f}s | FPS real: {real_fps} | FPS análisis: {fps}")
     if capture_all:
         print(f"Modo: todas las capturas ({total_frames} frames esperados)")
     elif dedupe:
