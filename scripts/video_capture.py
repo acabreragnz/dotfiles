@@ -126,8 +126,11 @@ def detect_and_save(
     scale: float,
     noise_floor: int,
     capture_all: bool = False,
+    force_rotate: int | None = None,
 ) -> int:
     duration, rotation = get_video_info(video_path)
+    if force_rotate is not None:
+        rotation = force_rotate
     total_frames = int(duration * fps)
     stem = Path(video_path).stem
 
@@ -233,6 +236,13 @@ def main():
         action="store_true",
         help="Capturar todos los frames sin detección de cambios"
     )
+    parser.add_argument(
+        "--rotate",
+        type=int,
+        choices=[0, 90, 180, 270],
+        default=None,
+        help="Forzar rotación en grados (sobreescribe la metadata del video)"
+    )
 
     args = parser.parse_args()
 
@@ -252,6 +262,7 @@ def main():
         scale=args.scale,
         noise_floor=args.noise,
         capture_all=args.all,
+        force_rotate=args.rotate,
     )
 
     if captured:
