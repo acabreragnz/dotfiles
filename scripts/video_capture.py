@@ -138,14 +138,14 @@ def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int
     PNG_HEADER = b"\x89PNG\r\n\x1a\n"
     PNG_END    = b"IEND\xaeB`\x82"
     CHUNK      = 65536
-    buf        = b""
+    buf        = bytearray()  # mutable: extend() no alloca objetos nuevos
     frame_idx  = 0
 
     while True:
         chunk = proc.stdout.read(CHUNK)
         if not chunk:
             break
-        buf += chunk
+        buf.extend(chunk)  # in-place, sin copiar todo el buffer
         while True:
             png_start = buf.find(PNG_HEADER)
             if png_start == -1:
@@ -155,7 +155,7 @@ def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int
                 break
             png_end += len(PNG_END)
             img = Image.open(BytesIO(buf[png_start:png_end])).convert("RGB")
-            buf = buf[png_end:]
+            del buf[:png_end]  # elimina in-place la parte ya procesada
             yield start + frame_idx / fps, np.array(img)
             frame_idx += 1
 
@@ -242,6 +242,7 @@ def process(
                 _save(frame, output_dir, stem, captured + 1, ts, by_minute)
                 captured += 1
                 last_ts   = ts
+            del frame  # libera el array grande antes del próximo frame
 
     return captured
 
