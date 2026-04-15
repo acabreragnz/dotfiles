@@ -125,13 +125,17 @@ def detect_and_save(
     cooldown: float,
     scale: float,
     noise_floor: int,
+    capture_all: bool = False,
 ) -> int:
     duration, rotation = get_video_info(video_path)
     total_frames = int(duration * fps)
     stem = Path(video_path).stem
 
     print(f"Video: {Path(video_path).name} | Duración: {duration:.1f}s | FPS análisis: {fps}")
-    print(f"Threshold: {threshold:.0%} píxeles | Cooldown: {cooldown}s | Escala análisis: {scale:.0%}")
+    if capture_all:
+        print(f"Modo: todas las capturas ({total_frames} frames esperados)")
+    else:
+        print(f"Threshold: {threshold:.0%} píxeles | Cooldown: {cooldown}s | Escala análisis: {scale:.0%}")
     if rotation:
         print(f"Rotación detectada: {rotation}° → corrigiendo automáticamente")
     print()
@@ -145,6 +149,11 @@ def detect_and_save(
     with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
         for ts, frame in stream_frames(video_path, fps, rotation):
             pbar.update(1)
+
+            if capture_all:
+                _save_frame(frame, output_dir, stem, captured + 1, ts)
+                captured += 1
+                continue
 
             # Downscale solo para análisis (más rápido)
             h, w = frame.shape[:2]
@@ -219,6 +228,11 @@ def main():
         default=15,
         help="Diferencia mínima por canal para no contar como ruido (default: 15)"
     )
+    parser.add_argument(
+        "--all", "-a",
+        action="store_true",
+        help="Capturar todos los frames sin detección de cambios"
+    )
 
     args = parser.parse_args()
 
@@ -237,6 +251,7 @@ def main():
         cooldown=args.cooldown,
         scale=args.scale,
         noise_floor=args.noise,
+        capture_all=args.all,
     )
 
     if captured:
