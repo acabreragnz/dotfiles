@@ -138,7 +138,7 @@ def detect_and_save(
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    last_small = None
+    prev_small = None   # frame anterior (para detectar movimiento)
     last_ts    = -cooldown
     captured   = 0
 
@@ -151,20 +151,22 @@ def detect_and_save(
             small_w, small_h = max(1, int(w * scale)), max(1, int(h * scale))
             small = np.array(Image.fromarray(frame).resize((small_w, small_h), Image.BILINEAR))
 
-            if last_small is None:
+            if prev_small is None:
                 # Primer frame: siempre capturar
                 _save_frame(frame, output_dir, stem, captured + 1, ts)
                 captured += 1
-                last_small = small
+                prev_small = small
                 last_ts = ts
                 continue
 
-            ratio = pixel_change_ratio(small, last_small, noise_floor)
+            # Comparar contra el frame ANTERIOR (no el último guardado)
+            # → detecta cada instante de movimiento, no solo cambios acumulados
+            ratio = pixel_change_ratio(small, prev_small, noise_floor)
+            prev_small = small  # siempre avanzar la ventana
 
             if ratio >= threshold and (ts - last_ts) >= cooldown:
                 _save_frame(frame, output_dir, stem, captured + 1, ts)
                 captured += 1
-                last_small = small
                 last_ts = ts
 
     return captured
