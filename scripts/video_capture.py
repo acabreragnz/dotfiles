@@ -2,24 +2,27 @@
 """
 video_capture.py — Captura frames de un video basado en detección de cambios.
 
-Estrategia para video con movimiento continuo:
-  - Compara histogramas de frames consecutivos (robusto al ruido y movimiento menor)
+Estrategia para video con movimiento continuo (persona en movimiento):
+  - Pixel diff: compara % de píxeles que cambiaron entre frames
+    → detecta movimiento local aunque el fondo sea estático
+  - Análisis en resolución reducida (--scale) para mayor velocidad
+  - Guardado en resolución original sin pérdida de calidad
   - Cooldown configurable para evitar ráfagas de frames similares
-  - Guarda el frame más representativo de cada "escena"
+  - Procesamiento en streaming: bajo consumo de memoria
 
 Uso:
   python3 video_capture.py <video> [opciones]
 
 Ejemplos:
   python3 video_capture.py video.mp4
-  python3 video_capture.py video.mp4 --output capturas/ --threshold 0.4 --cooldown 2.0
-  python3 video_capture.py video.mp4 --fps 5 --threshold 0.3
+  python3 video_capture.py video.mp4 --threshold 0.02 --cooldown 0.5
+  python3 video_capture.py video.mp4 --fps 4 --scale 0.3
 """
 
 import argparse
+import json
 import subprocess
 import sys
-import os
 from pathlib import Path
 from io import BytesIO
 
@@ -28,22 +31,18 @@ from PIL import Image
 from tqdm import tqdm
 
 
-def extract_frames_ffmpeg(video_path: str, fps: float) -> list[tuple[float, np.ndarray]]:
-    """Extrae frames del video usando FFmpeg, devuelve lista de (timestamp_seg, array_rgb)."""
-    # Obtener duración del video
+def get_video_duration(video_path: str) -> float:
     probe = subprocess.run(
         ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", video_path],
         capture_output=True, text=True
     )
-    import json
     info = json.loads(probe.stdout)
-    video_stream = next(s for s in info["streams"] if s["codec_type"] == "video")
-    duration = float(video_stream.get("duration", 0))
+    stream = next(s for s in info["streams"] if s["codec_type"] == "video")
+    return float(stream.get("duration", 0))
 
-    total_frames = int(duration * fps)
-    print(f"Video: {Path(video_path).name} | Duración: {duration:.1f}s | FPS de análisis: {fps}")
 
-    # Extraer frames via pipe (más eficiente que escribir archivos temporales)
+def stream_frames(video_path: str, fps: float):
+    """Generator que produce (timestamp, frame_rgb) en streaming desde FFmpeg."""
     cmd = [
         "ffmpeg", "-i", video_path,
         "-vf", f"fps={fps}",
@@ -53,159 +52,168 @@ def extract_frames_ffmpeg(video_path: str, fps: float) -> list[tuple[float, np.n
     ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
-    frames = []
-    frame_idx = 0
-    buf = b""
-
     PNG_HEADER = b"\x89PNG\r\n\x1a\n"
-    PNG_END = b"IEND\xaeB`\x82"
-    CHUNK = 65536  # 64 KB
+    PNG_END    = b"IEND\xaeB`\x82"
+    CHUNK      = 65536
+    buf        = b""
+    frame_idx  = 0
 
-    # Parsear PNGs en streaming — la barra avanza a medida que FFmpeg produce frames
-    with tqdm(total=total_frames, desc="Extrayendo", unit="frame") as pbar:
+    while True:
+        chunk = proc.stdout.read(CHUNK)
+        if not chunk:
+            break
+        buf += chunk
+
         while True:
-            chunk = proc.stdout.read(CHUNK)
-            if not chunk:
+            start = buf.find(PNG_HEADER)
+            if start == -1:
                 break
-            buf += chunk
-
-            # Extraer todos los PNGs completos que haya en el buffer
-            while True:
-                start = buf.find(PNG_HEADER)
-                if start == -1:
-                    break
-                end = buf.find(PNG_END, start)
-                if end == -1:
-                    break
-                end += len(PNG_END)
-                png_data = buf[start:end]
-                buf = buf[end:]
-                img = Image.open(BytesIO(png_data)).convert("RGB")
-                timestamp = frame_idx / fps
-                frames.append((timestamp, np.array(img)))
-                frame_idx += 1
-                pbar.update(1)
+            end = buf.find(PNG_END, start)
+            if end == -1:
+                break
+            end += len(PNG_END)
+            png_data = buf[start:end]
+            buf = buf[end:]
+            img = Image.open(BytesIO(png_data)).convert("RGB")
+            yield frame_idx / fps, np.array(img)
+            frame_idx += 1
 
     proc.wait()
-    return frames
 
 
-def compute_histogram(frame: np.ndarray, bins: int = 64) -> np.ndarray:
-    """Histograma normalizado HSV — robusto a cambios de iluminación."""
-    img = Image.fromarray(frame).convert("HSV")
-    hsv = np.array(img)
-    hist = np.concatenate([
-        np.histogram(hsv[:, :, c], bins=bins, range=(0, 255))[0]
-        for c in range(3)
-    ])
-    return hist.astype(float) / hist.sum()
+def pixel_change_ratio(a: np.ndarray, b: np.ndarray, noise_floor: int = 15) -> float:
+    """
+    % de píxeles (0–1) que cambiaron más que el ruido de cámara.
+    Detecta movimiento local aunque el fondo sea estático.
+    noise_floor: diferencia mínima por canal para no contar como ruido.
+    """
+    diff = np.abs(a.astype(np.int16) - b.astype(np.int16))
+    changed = np.any(diff > noise_floor, axis=2)
+    return float(changed.mean())
 
 
-def histogram_distance(h1: np.ndarray, h2: np.ndarray) -> float:
-    """Distancia chi-cuadrado entre histogramas (0 = idénticos, mayor = más diferentes)."""
-    denom = h1 + h2
-    mask = denom > 0
-    return float(np.sum(((h1[mask] - h2[mask]) ** 2) / denom[mask]))
-
-
-def detect_changes(
-    frames: list[tuple[float, np.ndarray]],
+def detect_and_save(
+    video_path: str,
+    output_dir: str,
+    fps: float,
     threshold: float,
     cooldown: float,
-) -> list[tuple[float, np.ndarray]]:
-    """
-    Detecta frames con cambio significativo respecto al último capturado.
+    scale: float,
+    noise_floor: int,
+) -> int:
+    duration = get_video_duration(video_path)
+    total_frames = int(duration * fps)
+    stem = Path(video_path).stem
 
-    threshold: distancia mínima chi-cuadrado para considerar cambio (0.1–1.0)
-    cooldown: segundos mínimos entre capturas
-    """
-    if not frames:
-        return []
+    print(f"Video: {Path(video_path).name} | Duración: {duration:.1f}s | FPS análisis: {fps}")
+    print(f"Threshold: {threshold:.0%} píxeles | Cooldown: {cooldown}s | Escala análisis: {scale:.0%}")
+    print()
 
-    captured = []
-    last_hist = compute_histogram(frames[0][1])
-    last_ts = -cooldown  # permite capturar el primer frame
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    for ts, frame in tqdm(frames, desc="Analizando", unit="frame"):
-        hist = compute_histogram(frame)
-        dist = histogram_distance(hist, last_hist)
+    last_small = None
+    last_ts    = -cooldown
+    captured   = 0
 
-        if dist >= threshold and (ts - last_ts) >= cooldown:
-            captured.append((ts, frame))
-            last_hist = hist
-            last_ts = ts
+    with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
+        for ts, frame in stream_frames(video_path, fps):
+            pbar.update(1)
+
+            # Downscale solo para análisis (más rápido)
+            h, w = frame.shape[:2]
+            small_w, small_h = max(1, int(w * scale)), max(1, int(h * scale))
+            small = np.array(Image.fromarray(frame).resize((small_w, small_h), Image.BILINEAR))
+
+            if last_small is None:
+                # Primer frame: siempre capturar
+                _save_frame(frame, output_dir, stem, captured + 1, ts)
+                captured += 1
+                last_small = small
+                last_ts = ts
+                continue
+
+            ratio = pixel_change_ratio(small, last_small, noise_floor)
+
+            if ratio >= threshold and (ts - last_ts) >= cooldown:
+                _save_frame(frame, output_dir, stem, captured + 1, ts)
+                captured += 1
+                last_small = small
+                last_ts = ts
 
     return captured
 
 
-def save_frames(
-    captures: list[tuple[float, np.ndarray]],
-    output_dir: str,
-    video_name: str,
-) -> None:
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
-    stem = Path(video_name).stem
-
-    for i, (ts, frame) in enumerate(tqdm(captures, desc="Guardando", unit="frame"), 1):
-        minutes = int(ts // 60)
-        seconds = ts % 60
-        filename = f"{stem}_{i:04d}_{minutes:02d}m{seconds:05.2f}s.jpg"
-        path = Path(output_dir) / filename
-        Image.fromarray(frame).save(path, quality=92)
-
-    print(f"Guardados {len(captures)} frames en: {output_dir}/")
+def _save_frame(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float) -> None:
+    minutes = int(ts // 60)
+    seconds = ts % 60
+    filename = f"{stem}_{idx:04d}_{minutes:02d}m{seconds:05.2f}s.jpg"
+    Image.fromarray(frame).save(Path(output_dir) / filename, quality=92)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Captura frames con detección de cambios para video con movimiento continuo"
+        description="Captura frames con detección de movimiento para video continuo"
     )
     parser.add_argument("video", help="Ruta al video de entrada")
     parser.add_argument(
         "--output", "-o",
         default=None,
-        help="Directorio de salida (default: <video>_capturas/)"
+        help="Directorio de salida (default: <video>_capturas/ junto al video)"
     )
     parser.add_argument(
         "--threshold", "-t",
         type=float,
-        default=0.35,
-        help="Sensibilidad de detección 0.1–1.0 (default: 0.35). Menor = más capturas."
+        default=0.03,
+        help="porcentaje de píxeles que deben cambiar para capturar, 0–1 (default: 0.03 = 3 pct)"
     )
     parser.add_argument(
         "--cooldown", "-c",
         type=float,
-        default=1.5,
-        help="Segundos mínimos entre capturas (default: 1.5)"
+        default=0.5,
+        help="Segundos mínimos entre capturas (default: 0.5)"
     )
     parser.add_argument(
         "--fps",
         type=float,
-        default=2.0,
-        help="FPS de análisis — cuántos frames/seg evaluar (default: 2). Más alto = más precisión, más lento."
+        default=4.0,
+        help="FPS de análisis (default: 4). Más alto = más detalle temporal, más lento."
+    )
+    parser.add_argument(
+        "--scale",
+        type=float,
+        default=0.25,
+        help="Escala para análisis, 0–1 (default: 0.25). No afecta calidad del output."
+    )
+    parser.add_argument(
+        "--noise",
+        type=int,
+        default=15,
+        help="Diferencia mínima por canal para no contar como ruido (default: 15)"
     )
 
     args = parser.parse_args()
 
     if not Path(args.video).exists():
-        print(f"Error: no se encontró el archivo '{args.video}'", file=sys.stderr)
+        print(f"Error: no se encontró '{args.video}'", file=sys.stderr)
         sys.exit(1)
 
     video_path = Path(args.video).resolve()
     output_dir = args.output or str(video_path.parent / f"{video_path.stem}_capturas")
 
-    print(f"Threshold: {args.threshold} | Cooldown: {args.cooldown}s | FPS análisis: {args.fps}")
-    print()
+    captured = detect_and_save(
+        video_path=str(video_path),
+        output_dir=output_dir,
+        fps=args.fps,
+        threshold=args.threshold,
+        cooldown=args.cooldown,
+        scale=args.scale,
+        noise_floor=args.noise,
+    )
 
-    frames = extract_frames_ffmpeg(args.video, args.fps)
-    captures = detect_changes(frames, args.threshold, args.cooldown)
-
-    print(f"Cambios detectados: {len(captures)}")
-
-    if captures:
-        save_frames(captures, output_dir, args.video)
+    if captured:
+        print(f"\nGuardados {captured} frames en: {output_dir}/")
     else:
-        print("No se detectaron cambios. Probá reduciendo --threshold.")
+        print("\nNo se detectaron cambios. Probá reduciendo --threshold.")
 
 
 if __name__ == "__main__":
