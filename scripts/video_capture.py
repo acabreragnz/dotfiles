@@ -103,7 +103,7 @@ def get_video_info(video_path: str) -> tuple[float, int, float]:
     return duration, rotation, real_fps
 
 
-def _build_vf(fps: float, rotation: int) -> str:
+def _build_vf(fps: float, rotation: int, max_width: int = 1920) -> str:
     parts = [f"fps={fps}"]
     r = rotation % 360
     if r == 90:
@@ -112,14 +112,17 @@ def _build_vf(fps: float, rotation: int) -> str:
         parts.append("hflip,vflip")
     elif r == 270:
         parts.append("transpose=2")
+    if max_width > 0:
+        # Downscale si el video es más ancho que max_width, sin upscalar
+        parts.append(f"scale=w='min({max_width},iw)':h=-2")
     return ",".join(parts)
 
 
-def stream_frames(video_path: str, fps: float, rotation: int = 0):
+def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int = 1920):
     """Generator que produce (timestamp, frame_rgb) en streaming desde FFmpeg."""
     cmd = [
         "ffmpeg", "-noautorotate", "-i", video_path,
-        "-vf", _build_vf(fps, rotation),
+        "-vf", _build_vf(fps, rotation, max_width),
         "-f", "image2pipe",
         "-vcodec", "png",
         "-"
@@ -164,6 +167,7 @@ def process(
     mode: str,
     by_minute: bool,
     force_rotate: int | None,
+    max_width: int = 1920,
     pixelize: bool = False,
 ) -> int:
     fps_cfg, threshold, cooldown, noise = MODES[mode]
@@ -180,6 +184,8 @@ def process(
     print(f"Modo  : {mode} | FPS análisis: {fps} | Duración: {duration:.1f}s (~{total_frames} frames)")
     if rotation:
         print(f"Rot.  : {rotation}° corregida automáticamente")
+    if max_width > 0:
+        print(f"Scale : max {max_width}px de ancho (sin upscale)")
     if pixelize:
         print(f"Pixelize: activado — cargando modelo de detección de caras...")
         cv2, detect_faces, apply_mosaic = _load_pixelizer()
@@ -194,7 +200,7 @@ def process(
     SCALE      = 0.25
 
     with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
-        for ts, frame in stream_frames(video_path, fps, rotation):
+        for ts, frame in stream_frames(video_path, fps, rotation, max_width):
             pbar.update(1)
 
             h, w   = frame.shape[:2]
@@ -252,6 +258,8 @@ def main():
                         help="Forzar rotación en grados")
     parser.add_argument("--no-group", action="store_true",
                         help="No agrupar capturas por minuto")
+    parser.add_argument("--max-width", type=int, default=1920, metavar="PX",
+                        help="Downscale a este ancho máximo antes de procesar (default: 1920). 0 = sin límite")
     parser.add_argument("--pixelize", "-p", action="store_true",
                         help="Aplicar mosaico fuerte sobre caras detectadas en cada captura")
 
@@ -270,6 +278,7 @@ def main():
         mode=args.mode,
         by_minute=not args.no_group and args.mode == "full",
         force_rotate=args.rotate,
+        max_width=args.max_width,
         pixelize=args.pixelize,
     )
 
