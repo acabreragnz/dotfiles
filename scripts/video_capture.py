@@ -147,15 +147,15 @@ def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int
             break
         buf += chunk
         while True:
-            start = buf.find(PNG_HEADER)
-            if start == -1:
+            png_start = buf.find(PNG_HEADER)
+            if png_start == -1:
                 break
-            end = buf.find(PNG_END, start)
-            if end == -1:
+            png_end = buf.find(PNG_END, png_start)
+            if png_end == -1:
                 break
-            end += len(PNG_END)
-            img = Image.open(BytesIO(buf[start:end])).convert("RGB")
-            buf = buf[end:]
+            png_end += len(PNG_END)
+            img = Image.open(BytesIO(buf[png_start:png_end])).convert("RGB")
+            buf = buf[png_end:]
             yield start + frame_idx / fps, np.array(img)
             frame_idx += 1
 
@@ -203,7 +203,10 @@ def process(
         print(f"Pixelize: listo")
     print()
 
-    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    import shutil
+    if Path(output_dir).exists():
+        shutil.rmtree(output_dir)
+    Path(output_dir).mkdir(parents=True)
 
     prev_small = None
     last_ts    = -cooldown
