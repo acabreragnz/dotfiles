@@ -25,6 +25,7 @@ from io import BytesIO
 
 import numpy as np
 from PIL import Image
+from tqdm import tqdm
 
 
 def extract_frames_ffmpeg(video_path: str, fps: float) -> list[tuple[float, np.ndarray]]:
@@ -39,6 +40,7 @@ def extract_frames_ffmpeg(video_path: str, fps: float) -> list[tuple[float, np.n
     video_stream = next(s for s in info["streams"] if s["codec_type"] == "video")
     duration = float(video_stream.get("duration", 0))
 
+    total_frames = int(duration * fps)
     print(f"Video: {Path(video_path).name} | Duración: {duration:.1f}s | FPS de análisis: {fps}")
 
     # Extraer frames via pipe (más eficiente que escribir archivos temporales)
@@ -53,7 +55,6 @@ def extract_frames_ffmpeg(video_path: str, fps: float) -> list[tuple[float, np.n
 
     frames = []
     frame_idx = 0
-    buf = b""
 
     PNG_HEADER = b"\x89PNG\r\n\x1a\n"
     PNG_END = b"IEND\xaeB`\x82"
@@ -63,22 +64,23 @@ def extract_frames_ffmpeg(video_path: str, fps: float) -> list[tuple[float, np.n
 
     # Parsear PNGs concatenados del pipe
     pos = 0
-    while True:
-        start = raw.find(PNG_HEADER, pos)
-        if start == -1:
-            break
-        end = raw.find(PNG_END, start)
-        if end == -1:
-            break
-        end += len(PNG_END)
-        png_data = raw[start:end]
-        img = Image.open(BytesIO(png_data)).convert("RGB")
-        timestamp = frame_idx / fps
-        frames.append((timestamp, np.array(img)))
-        frame_idx += 1
-        pos = end
+    with tqdm(total=total_frames, desc="Extrayendo", unit="frame") as pbar:
+        while True:
+            start = raw.find(PNG_HEADER, pos)
+            if start == -1:
+                break
+            end = raw.find(PNG_END, start)
+            if end == -1:
+                break
+            end += len(PNG_END)
+            png_data = raw[start:end]
+            img = Image.open(BytesIO(png_data)).convert("RGB")
+            timestamp = frame_idx / fps
+            frames.append((timestamp, np.array(img)))
+            frame_idx += 1
+            pos = end
+            pbar.update(1)
 
-    print(f"Frames extraídos: {len(frames)}")
     return frames
 
 
@@ -118,7 +120,7 @@ def detect_changes(
     last_hist = compute_histogram(frames[0][1])
     last_ts = -cooldown  # permite capturar el primer frame
 
-    for ts, frame in frames:
+    for ts, frame in tqdm(frames, desc="Analizando", unit="frame"):
         hist = compute_histogram(frame)
         dist = histogram_distance(hist, last_hist)
 
@@ -138,15 +140,14 @@ def save_frames(
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     stem = Path(video_name).stem
 
-    for i, (ts, frame) in enumerate(captures, 1):
+    for i, (ts, frame) in enumerate(tqdm(captures, desc="Guardando", unit="frame"), 1):
         minutes = int(ts // 60)
         seconds = ts % 60
         filename = f"{stem}_{i:04d}_{minutes:02d}m{seconds:05.2f}s.jpg"
         path = Path(output_dir) / filename
         Image.fromarray(frame).save(path, quality=92)
-        print(f"  [{i:04d}] {minutes:02d}:{seconds:05.2f} → {filename}")
 
-    print(f"\nGuardados {len(captures)} frames en: {output_dir}/")
+    print(f"Guardados {len(captures)} frames en: {output_dir}/")
 
 
 def main():
@@ -192,7 +193,7 @@ def main():
     frames = extract_frames_ffmpeg(args.video, args.fps)
     captures = detect_changes(frames, args.threshold, args.cooldown)
 
-    print(f"\nCambios detectados: {len(captures)}")
+    print(f"Cambios detectados: {len(captures)}")
 
     if captures:
         save_frames(captures, output_dir, args.video)
