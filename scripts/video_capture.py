@@ -32,9 +32,9 @@ DEFACE_SITE = "/home/tcabrera/.local/share/pipx/venvs/deface/lib/python3.12/site
 
 def _load_pixelizer():
     """Carga CenterFace y helpers de pixelize.py (lazy, solo si --pixelize)."""
-    import cv2
     if DEFACE_SITE not in sys.path:
         sys.path.insert(0, DEFACE_SITE)
+    import cv2
     from deface.centerface import CenterFace
 
     model = CenterFace()
