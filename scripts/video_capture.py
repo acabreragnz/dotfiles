@@ -131,6 +131,7 @@ def detect_and_save(
     noise_floor: int,
     capture_all: bool = False,
     dedupe: bool = False,
+    by_minute: bool = True,
     force_rotate: int | None = None,
 ) -> int:
     duration, rotation, real_fps = get_video_info(video_path)
@@ -163,7 +164,7 @@ def detect_and_save(
             pbar.update(1)
 
             if capture_all:
-                _save_frame(frame, output_dir, stem, captured + 1, ts)
+                _save_frame(frame, output_dir, stem, captured + 1, ts, by_minute)
                 captured += 1
                 continue
 
@@ -173,7 +174,7 @@ def detect_and_save(
                 small_w, small_h = max(1, int(w * scale)), max(1, int(h * scale))
                 small = np.array(Image.fromarray(frame).resize((small_w, small_h), Image.BILINEAR))
                 if prev_small is None or pixel_change_ratio(small, prev_small, noise_floor) > 0:
-                    _save_frame(frame, output_dir, stem, captured + 1, ts)
+                    _save_frame(frame, output_dir, stem, captured + 1, ts, by_minute)
                     captured += 1
                 prev_small = small
                 continue
@@ -185,7 +186,7 @@ def detect_and_save(
 
             if prev_small is None:
                 # Primer frame: siempre capturar
-                _save_frame(frame, output_dir, stem, captured + 1, ts)
+                _save_frame(frame, output_dir, stem, captured + 1, ts, by_minute)
                 captured += 1
                 prev_small = small
                 last_ts = ts
@@ -197,18 +198,20 @@ def detect_and_save(
             prev_small = small  # siempre avanzar la ventana
 
             if ratio >= threshold and (ts - last_ts) >= cooldown:
-                _save_frame(frame, output_dir, stem, captured + 1, ts)
+                _save_frame(frame, output_dir, stem, captured + 1, ts, by_minute)
                 captured += 1
                 last_ts = ts
 
     return captured
 
 
-def _save_frame(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float) -> None:
+def _save_frame(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool = False) -> None:
     minutes = int(ts // 60)
     seconds = ts % 60
     filename = f"{stem}_{idx:04d}_{minutes:02d}m{seconds:05.2f}s.jpg"
-    Image.fromarray(frame).save(Path(output_dir) / filename, quality=92)
+    dest = Path(output_dir) / f"{minutes:02d}m" / filename if by_minute else Path(output_dir) / filename
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    Image.fromarray(frame).save(dest, quality=92)
 
 
 def main():
@@ -257,6 +260,11 @@ def main():
         help="Capturar todos los frames sin detección de cambios"
     )
     parser.add_argument(
+        "--no-group",
+        action="store_true",
+        help="No agrupar por minuto, guardar todo en un directorio plano"
+    )
+    parser.add_argument(
         "--dedupe", "-d",
         action="store_true",
         help="Guardar todos los frames excepto los idénticos al anterior (sin cooldown)"
@@ -288,6 +296,7 @@ def main():
         noise_floor=args.noise,
         capture_all=args.all,
         dedupe=args.dedupe,
+        by_minute=not args.no_group,
         force_rotate=args.rotate,
     )
 
