@@ -118,10 +118,16 @@ def _build_vf(fps: float, rotation: int, max_width: int = 1920) -> str:
     return ",".join(parts)
 
 
-def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int = 1920):
+def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int = 1920,
+                  start: float = 0, end: float = 0):
     """Generator que produce (timestamp, frame_rgb) en streaming desde FFmpeg."""
-    cmd = [
-        "ffmpeg", "-noautorotate", "-i", video_path,
+    cmd = ["ffmpeg", "-noautorotate"]
+    if start > 0:
+        cmd += ["-ss", str(start)]
+    cmd += ["-i", video_path]
+    if end > 0:
+        cmd += ["-to", str(end - start) if start > 0 else str(end)]
+    cmd += [
         "-vf", _build_vf(fps, rotation, max_width),
         "-f", "image2pipe",
         "-vcodec", "png",
@@ -150,7 +156,7 @@ def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int
             end += len(PNG_END)
             img = Image.open(BytesIO(buf[start:end])).convert("RGB")
             buf = buf[end:]
-            yield frame_idx / fps, np.array(img)
+            yield start + frame_idx / fps, np.array(img)
             frame_idx += 1
 
     proc.wait()
@@ -168,6 +174,8 @@ def process(
     by_minute: bool,
     force_rotate: int | None,
     max_width: int = 1920,
+    start: float = 0,
+    end: float = 0,
     pixelize: bool = False,
 ) -> int:
     fps_cfg, threshold, cooldown, noise = MODES[mode]
@@ -186,6 +194,9 @@ def process(
         print(f"Rot.  : {rotation}° corregida automáticamente")
     if max_width > 0:
         print(f"Scale : max {max_width}px de ancho (sin upscale)")
+    if start or end:
+        end_label = f"{end:.0f}s" if end else "fin"
+        print(f"Rango : {start:.0f}s → {end_label}")
     if pixelize:
         print(f"Pixelize: activado — cargando modelo de detección de caras...")
         cv2, detect_faces, apply_mosaic = _load_pixelizer()
@@ -200,7 +211,7 @@ def process(
     SCALE      = 0.25
 
     with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
-        for ts, frame in stream_frames(video_path, fps, rotation, max_width):
+        for ts, frame in stream_frames(video_path, fps, rotation, max_width, start, end):
             pbar.update(1)
 
             h, w   = frame.shape[:2]
@@ -260,6 +271,10 @@ def main():
                         help="No agrupar capturas por minuto")
     parser.add_argument("--max-width", type=int, default=1920, metavar="PX",
                         help="Downscale a este ancho máximo antes de procesar (default: 1920). 0 = sin límite")
+    parser.add_argument("--start", default="0",
+                        help="Comenzar desde este punto (segundos o MM:SS, default: 0)")
+    parser.add_argument("--end", default="0",
+                        help="Detener en este punto (segundos o MM:SS, default: fin del video)")
     parser.add_argument("--pixelize", "-p", action="store_true",
                         help="Aplicar mosaico fuerte sobre caras detectadas en cada captura")
 
@@ -268,6 +283,12 @@ def main():
     if not Path(args.video).exists():
         print(f"Error: no se encontró '{args.video}'", file=sys.stderr)
         sys.exit(1)
+
+    def parse_time(s: str) -> float:
+        if ":" in s:
+            parts = s.split(":")
+            return int(parts[0]) * 60 + float(parts[1])
+        return float(s)
 
     video_path = Path(args.video).resolve()
     output_dir = args.output or str(video_path.parent / f"{video_path.stem}_capturas_{args.mode}")
@@ -279,6 +300,8 @@ def main():
         by_minute=not args.no_group and args.mode == "full",
         force_rotate=args.rotate,
         max_width=args.max_width,
+        start=parse_time(args.start),
+        end=parse_time(args.end),
         pixelize=args.pixelize,
     )
 
