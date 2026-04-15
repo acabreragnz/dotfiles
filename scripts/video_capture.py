@@ -213,7 +213,7 @@ def main():
         video_path=str(video_path),
         output_dir=output_dir,
         mode=args.mode,
-        by_minute=not args.no_group,
+        by_minute=not args.no_group and args.mode != "low",
         force_rotate=args.rotate,
     )
 
