@@ -1,22 +1,19 @@
 #!/usr/bin/env python3
 """
-video_capture.py — Captura frames de un video basado en detección de cambios.
+video_capture.py — Captura frames de un video con detección de cambios.
 
-Estrategia para video con movimiento continuo (persona en movimiento):
-  - Pixel diff: compara % de píxeles que cambiaron entre frames
-    → detecta movimiento local aunque el fondo sea estático
-  - Análisis en resolución reducida (--scale) para mayor velocidad
-  - Guardado en resolución original sin pérdida de calidad
-  - Cooldown configurable para evitar ráfagas de frames similares
-  - Procesamiento en streaming: bajo consumo de memoria
+Modos:
+  full   (default) — FPS real del video, guarda todo frame con cualquier diferencia
+  medium           — 4 FPS, detecta movimiento significativo (umbral moderado)
+  low              — 2 FPS, solo cambios grandes (menos capturas)
 
 Uso:
-  python3 video_capture.py <video> [opciones]
+  python3 video_capture.py <video> [full|medium|low] [opciones]
 
 Ejemplos:
-  python3 video_capture.py video.mp4
-  python3 video_capture.py video.mp4 --threshold 0.02 --cooldown 0.5
-  python3 video_capture.py video.mp4 --fps 4 --scale 0.3
+  python3 video_capture.py video.avi
+  python3 video_capture.py video.avi medium --rotate 180
+  python3 video_capture.py video.avi low --output /tmp/capturas
 """
 
 import argparse
@@ -31,34 +28,40 @@ from PIL import Image
 from tqdm import tqdm
 
 
+MODES = {
+    #          fps    threshold  cooldown  noise
+    "full":   (None,  0.0,       0.0,      5),   # fps=None → usa FPS real del video
+    "medium": (4.0,   0.03,      0.5,      15),
+    "low":    (2.0,   0.08,      2.0,      20),
+}
+
+
 def get_video_info(video_path: str) -> tuple[float, int, float]:
-    """Devuelve (duración_seg, rotación_grados, fps_real) del video."""
+    """Devuelve (duración_seg, rotación_grados, fps_real)."""
     probe = subprocess.run(
         ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", video_path],
         capture_output=True, text=True
     )
     info = json.loads(probe.stdout)
     stream = next(s for s in info["streams"] if s["codec_type"] == "video")
+
     duration = float(stream.get("duration", 0))
 
-    # FPS real (r_frame_rate es "num/den", e.g. "30000/1001")
     num, den = stream.get("r_frame_rate", "25/1").split("/")
     real_fps = round(int(num) / int(den), 3)
 
-    # Rotation en tags (formato viejo) o side_data_list (formato nuevo)
     rotation = 0
     tags = stream.get("tags", {})
     if "rotate" in tags:
         rotation = int(tags["rotate"])
     for sd in stream.get("side_data_list", []):
         if "rotation" in sd:
-            rotation = -int(sd["rotation"])  # side_data usa signo opuesto
+            rotation = -int(sd["rotation"])
 
     return duration, rotation, real_fps
 
 
 def _build_vf(fps: float, rotation: int) -> str:
-    """Construye el filtro -vf con fps + corrección de rotación si es necesario."""
     parts = [f"fps={fps}"]
     r = rotation % 360
     if r == 90:
@@ -92,7 +95,6 @@ def stream_frames(video_path: str, fps: float, rotation: int = 0):
         if not chunk:
             break
         buf += chunk
-
         while True:
             start = buf.find(PNG_HEADER)
             if start == -1:
@@ -101,181 +103,102 @@ def stream_frames(video_path: str, fps: float, rotation: int = 0):
             if end == -1:
                 break
             end += len(PNG_END)
-            png_data = buf[start:end]
+            img = Image.open(BytesIO(buf[start:end])).convert("RGB")
             buf = buf[end:]
-            img = Image.open(BytesIO(png_data)).convert("RGB")
             yield frame_idx / fps, np.array(img)
             frame_idx += 1
 
     proc.wait()
 
 
-def pixel_change_ratio(a: np.ndarray, b: np.ndarray, noise_floor: int = 15) -> float:
-    """
-    % de píxeles (0–1) que cambiaron más que el ruido de cámara.
-    Detecta movimiento local aunque el fondo sea estático.
-    noise_floor: diferencia mínima por canal para no contar como ruido.
-    """
+def pixel_change_ratio(a: np.ndarray, b: np.ndarray, noise_floor: int) -> float:
     diff = np.abs(a.astype(np.int16) - b.astype(np.int16))
-    changed = np.any(diff > noise_floor, axis=2)
-    return float(changed.mean())
+    return float(np.any(diff > noise_floor, axis=2).mean())
 
 
-def detect_and_save(
+def process(
     video_path: str,
     output_dir: str,
-    fps: float,
-    threshold: float,
-    cooldown: float,
-    scale: float,
-    noise_floor: int,
-    capture_all: bool = False,
-    dedupe: bool = False,
-    by_minute: bool = True,
-    force_rotate: int | None = None,
+    mode: str,
+    by_minute: bool,
+    force_rotate: int | None,
 ) -> int:
+    fps_cfg, threshold, cooldown, noise = MODES[mode]
     duration, rotation, real_fps = get_video_info(video_path)
+
     if force_rotate is not None:
         rotation = force_rotate
-    if (capture_all or dedupe) and fps == 4.0:
-        fps = real_fps  # usar FPS real del video en modos agresivos
+
+    fps = fps_cfg or real_fps  # full usa FPS real
     total_frames = int(duration * fps)
     stem = Path(video_path).stem
 
-    print(f"Video: {Path(video_path).name} | Duración: {duration:.1f}s | FPS real: {real_fps} | FPS análisis: {fps}")
-    if capture_all:
-        print(f"Modo: todas las capturas ({total_frames} frames esperados)")
-    elif dedupe:
-        print(f"Modo: todos los frames con cambio (sin cooldown, solo filtra estáticos)")
-    else:
-        print(f"Threshold: {threshold:.0%} píxeles | Cooldown: {cooldown}s | Escala análisis: {scale:.0%}")
+    print(f"Video : {Path(video_path).name}")
+    print(f"Modo  : {mode} | FPS análisis: {fps} | Duración: {duration:.1f}s (~{total_frames} frames)")
     if rotation:
-        print(f"Rotación detectada: {rotation}° → corrigiendo automáticamente")
+        print(f"Rot.  : {rotation}° corregida automáticamente")
     print()
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
 
-    prev_small = None   # frame anterior (para detectar movimiento)
+    prev_small = None
     last_ts    = -cooldown
     captured   = 0
+    SCALE      = 0.25  # downscale solo para comparación, no afecta el guardado
 
     with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
         for ts, frame in stream_frames(video_path, fps, rotation):
             pbar.update(1)
 
-            if capture_all:
-                _save_frame(frame, output_dir, stem, captured + 1, ts, by_minute)
-                captured += 1
-                continue
-
-            if dedupe:
-                # Guardar todo excepto frames idénticos al anterior (solo ruido)
-                h, w = frame.shape[:2]
-                small_w, small_h = max(1, int(w * scale)), max(1, int(h * scale))
-                small = np.array(Image.fromarray(frame).resize((small_w, small_h), Image.BILINEAR))
-                if prev_small is None or pixel_change_ratio(small, prev_small, noise_floor) > 0:
-                    _save_frame(frame, output_dir, stem, captured + 1, ts, by_minute)
-                    captured += 1
-                prev_small = small
-                continue
-
-            # Downscale solo para análisis (más rápido)
-            h, w = frame.shape[:2]
-            small_w, small_h = max(1, int(w * scale)), max(1, int(h * scale))
-            small = np.array(Image.fromarray(frame).resize((small_w, small_h), Image.BILINEAR))
+            h, w   = frame.shape[:2]
+            small  = np.array(Image.fromarray(frame).resize(
+                (max(1, int(w * SCALE)), max(1, int(h * SCALE))), Image.BILINEAR
+            ))
 
             if prev_small is None:
-                # Primer frame: siempre capturar
-                _save_frame(frame, output_dir, stem, captured + 1, ts, by_minute)
-                captured += 1
+                _save(frame, output_dir, stem, captured + 1, ts, by_minute)
+                captured  += 1
                 prev_small = small
-                last_ts = ts
+                last_ts    = ts
                 continue
 
-            # Comparar contra el frame ANTERIOR (no el último guardado)
-            # → detecta cada instante de movimiento, no solo cambios acumulados
-            ratio = pixel_change_ratio(small, prev_small, noise_floor)
-            prev_small = small  # siempre avanzar la ventana
+            ratio      = pixel_change_ratio(small, prev_small, noise)
+            prev_small = small
 
-            if ratio >= threshold and (ts - last_ts) >= cooldown:
-                _save_frame(frame, output_dir, stem, captured + 1, ts, by_minute)
+            if ratio > threshold and (ts - last_ts) >= cooldown:
+                _save(frame, output_dir, stem, captured + 1, ts, by_minute)
                 captured += 1
-                last_ts = ts
+                last_ts   = ts
 
     return captured
 
 
-def _save_frame(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool = False) -> None:
-    minutes = int(ts // 60)
-    seconds = ts % 60
+def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool) -> None:
+    minutes  = int(ts // 60)
+    seconds  = ts % 60
     filename = f"{stem}_{idx:04d}_{minutes:02d}m{seconds:05.2f}s.jpg"
-    dest = Path(output_dir) / f"{minutes:02d}m" / filename if by_minute else Path(output_dir) / filename
+    dest     = Path(output_dir) / (f"{minutes:02d}m" if by_minute else "") / filename
     dest.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(frame).save(dest, quality=92)
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Captura frames con detección de movimiento para video continuo"
+        description="Captura frames de un video con detección de cambios"
     )
-    parser.add_argument("video", help="Ruta al video de entrada")
+    parser.add_argument("video", help="Ruta al video")
     parser.add_argument(
-        "--output", "-o",
-        default=None,
-        help="Directorio de salida (default: <video>_capturas/ junto al video)"
+        "mode",
+        nargs="?",
+        choices=["full", "medium", "low"],
+        default="full",
+        help="Modo de captura (default: full)"
     )
-    parser.add_argument(
-        "--threshold", "-t",
-        type=float,
-        default=0.03,
-        help="porcentaje de píxeles que deben cambiar para capturar, 0–1 (default: 0.03 = 3 pct)"
-    )
-    parser.add_argument(
-        "--cooldown", "-c",
-        type=float,
-        default=0.5,
-        help="Segundos mínimos entre capturas (default: 0.5)"
-    )
-    parser.add_argument(
-        "--fps",
-        type=float,
-        default=4.0,
-        help="FPS de análisis (default: 4). Más alto = más detalle temporal, más lento."
-    )
-    parser.add_argument(
-        "--scale",
-        type=float,
-        default=0.25,
-        help="Escala para análisis, 0–1 (default: 0.25). No afecta calidad del output."
-    )
-    parser.add_argument(
-        "--noise",
-        type=int,
-        default=15,
-        help="Diferencia mínima por canal para no contar como ruido (default: 15)"
-    )
-    parser.add_argument(
-        "--all", "-a",
-        action="store_true",
-        help="Capturar todos los frames sin detección de cambios"
-    )
-    parser.add_argument(
-        "--no-group",
-        action="store_true",
-        help="No agrupar por minuto, guardar todo en un directorio plano"
-    )
-    parser.add_argument(
-        "--dedupe", "-d",
-        action="store_true",
-        help="Guardar todos los frames excepto los idénticos al anterior (sin cooldown)"
-    )
-    parser.add_argument(
-        "--rotate",
-        type=int,
-        choices=[0, 90, 180, 270],
-        default=None,
-        help="Forzar rotación en grados (sobreescribe la metadata del video)"
-    )
+    parser.add_argument("--output", "-o", default=None, help="Directorio de salida")
+    parser.add_argument("--rotate", type=int, choices=[0, 90, 180, 270], default=None,
+                        help="Forzar rotación en grados")
+    parser.add_argument("--no-group", action="store_true",
+                        help="No agrupar capturas por minuto")
 
     args = parser.parse_args()
 
@@ -286,24 +209,15 @@ def main():
     video_path = Path(args.video).resolve()
     output_dir = args.output or str(video_path.parent / f"{video_path.stem}_capturas")
 
-    captured = detect_and_save(
+    captured = process(
         video_path=str(video_path),
         output_dir=output_dir,
-        fps=args.fps,
-        threshold=args.threshold,
-        cooldown=args.cooldown,
-        scale=args.scale,
-        noise_floor=args.noise,
-        capture_all=args.all,
-        dedupe=args.dedupe,
+        mode=args.mode,
         by_minute=not args.no_group,
         force_rotate=args.rotate,
     )
 
-    if captured:
-        print(f"\nGuardados {captured} frames en: {output_dir}/")
-    else:
-        print("\nNo se detectaron cambios. Probá reduciendo --threshold.")
+    print(f"\nGuardados {captured} frames en: {output_dir}/")
 
 
 if __name__ == "__main__":
