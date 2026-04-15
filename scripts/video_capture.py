@@ -55,32 +55,38 @@ def extract_frames_ffmpeg(video_path: str, fps: float) -> list[tuple[float, np.n
 
     frames = []
     frame_idx = 0
+    buf = b""
 
     PNG_HEADER = b"\x89PNG\r\n\x1a\n"
     PNG_END = b"IEND\xaeB`\x82"
+    CHUNK = 65536  # 64 KB
 
-    raw = proc.stdout.read()
-    proc.wait()
-
-    # Parsear PNGs concatenados del pipe
-    pos = 0
+    # Parsear PNGs en streaming — la barra avanza a medida que FFmpeg produce frames
     with tqdm(total=total_frames, desc="Extrayendo", unit="frame") as pbar:
         while True:
-            start = raw.find(PNG_HEADER, pos)
-            if start == -1:
+            chunk = proc.stdout.read(CHUNK)
+            if not chunk:
                 break
-            end = raw.find(PNG_END, start)
-            if end == -1:
-                break
-            end += len(PNG_END)
-            png_data = raw[start:end]
-            img = Image.open(BytesIO(png_data)).convert("RGB")
-            timestamp = frame_idx / fps
-            frames.append((timestamp, np.array(img)))
-            frame_idx += 1
-            pos = end
-            pbar.update(1)
+            buf += chunk
 
+            # Extraer todos los PNGs completos que haya en el buffer
+            while True:
+                start = buf.find(PNG_HEADER)
+                if start == -1:
+                    break
+                end = buf.find(PNG_END, start)
+                if end == -1:
+                    break
+                end += len(PNG_END)
+                png_data = buf[start:end]
+                buf = buf[end:]
+                img = Image.open(BytesIO(png_data)).convert("RGB")
+                timestamp = frame_idx / fps
+                frames.append((timestamp, np.array(img)))
+                frame_idx += 1
+                pbar.update(1)
+
+    proc.wait()
     return frames
 
 
