@@ -31,21 +31,46 @@ from PIL import Image
 from tqdm import tqdm
 
 
-def get_video_duration(video_path: str) -> float:
+def get_video_info(video_path: str) -> tuple[float, int]:
+    """Devuelve (duración_seg, rotación_grados) del video."""
     probe = subprocess.run(
         ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", video_path],
         capture_output=True, text=True
     )
     info = json.loads(probe.stdout)
     stream = next(s for s in info["streams"] if s["codec_type"] == "video")
-    return float(stream.get("duration", 0))
+    duration = float(stream.get("duration", 0))
+
+    # Rotation en tags (formato viejo) o side_data_list (formato nuevo)
+    rotation = 0
+    tags = stream.get("tags", {})
+    if "rotate" in tags:
+        rotation = int(tags["rotate"])
+    for sd in stream.get("side_data_list", []):
+        if "rotation" in sd:
+            rotation = -int(sd["rotation"])  # side_data usa signo opuesto
+
+    return duration, rotation
 
 
-def stream_frames(video_path: str, fps: float):
+def _build_vf(fps: float, rotation: int) -> str:
+    """Construye el filtro -vf con fps + corrección de rotación si es necesario."""
+    parts = [f"fps={fps}"]
+    r = rotation % 360
+    if r == 90:
+        parts.append("transpose=1")
+    elif r == 180:
+        parts.append("hflip,vflip")
+    elif r == 270:
+        parts.append("transpose=2")
+    return ",".join(parts)
+
+
+def stream_frames(video_path: str, fps: float, rotation: int = 0):
     """Generator que produce (timestamp, frame_rgb) en streaming desde FFmpeg."""
     cmd = [
-        "ffmpeg", "-i", video_path,
-        "-vf", f"fps={fps}",
+        "ffmpeg", "-noautorotate", "-i", video_path,
+        "-vf", _build_vf(fps, rotation),
         "-f", "image2pipe",
         "-vcodec", "png",
         "-"
@@ -101,12 +126,14 @@ def detect_and_save(
     scale: float,
     noise_floor: int,
 ) -> int:
-    duration = get_video_duration(video_path)
+    duration, rotation = get_video_info(video_path)
     total_frames = int(duration * fps)
     stem = Path(video_path).stem
 
     print(f"Video: {Path(video_path).name} | Duración: {duration:.1f}s | FPS análisis: {fps}")
     print(f"Threshold: {threshold:.0%} píxeles | Cooldown: {cooldown}s | Escala análisis: {scale:.0%}")
+    if rotation:
+        print(f"Rotación detectada: {rotation}° → corrigiendo automáticamente")
     print()
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)
@@ -116,7 +143,7 @@ def detect_and_save(
     captured   = 0
 
     with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
-        for ts, frame in stream_frames(video_path, fps):
+        for ts, frame in stream_frames(video_path, fps, rotation):
             pbar.update(1)
 
             # Downscale solo para análisis (más rápido)
