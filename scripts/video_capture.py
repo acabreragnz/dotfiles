@@ -207,7 +207,7 @@ def main():
         sys.exit(1)
 
     video_path = Path(args.video).resolve()
-    output_dir = args.output or str(video_path.parent / f"{video_path.stem}_capturas")
+    output_dir = args.output or str(video_path.parent / f"{video_path.stem}_capturas_{args.mode}")
 
     captured = process(
         video_path=str(video_path),
