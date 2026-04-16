@@ -1,15 +1,17 @@
 [Unit]
-Description=Watch .pixelize/full and .pixelize/slim for new images to pixelize
+Description=Watch .pixelize/full and .pixelize/quick for new images to pixelize
 
 [Path]
 PathExistsGlob=%h/Pictures/.inbox/.pixelize/full/*.jpg
 PathExistsGlob=%h/Pictures/.inbox/.pixelize/full/*.jpeg
 PathExistsGlob=%h/Pictures/.inbox/.pixelize/full/*.png
 PathExistsGlob=%h/Pictures/.inbox/.pixelize/full/*.webp
-PathExistsGlob=%h/Pictures/.inbox/.pixelize/slim/*.jpg
-PathExistsGlob=%h/Pictures/.inbox/.pixelize/slim/*.jpeg
-PathExistsGlob=%h/Pictures/.inbox/.pixelize/slim/*.png
-PathExistsGlob=%h/Pictures/.inbox/.pixelize/slim/*.webp
+PathExistsGlob=%h/Pictures/.inbox/.pixelize/quick/*.jpg
+PathExistsGlob=%h/Pictures/.inbox/.pixelize/quick/*.jpeg
+PathExistsGlob=%h/Pictures/.inbox/.pixelize/quick/*.png
+PathExistsGlob=%h/Pictures/.inbox/.pixelize/quick/*.webp
+PathChanged=%h/Pictures/.inbox/.pixelize/full
+PathChanged=%h/Pictures/.inbox/.pixelize/quick
 Unit=anonymize-faces.service
 
 [Install]
