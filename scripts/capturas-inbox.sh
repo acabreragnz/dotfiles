@@ -19,9 +19,15 @@ process_dir() {
         name=$(basename "$vid")
         stem="${name%.*}"
 
+        # VLC recordings de la cámara IP no tienen metadata de rotación → forzar 180°
+        rotate_flag=""
+        if echo "$name" | grep -qi "^vlc-record"; then
+            rotate_flag="--rotate 180"
+        fi
+
         echo "[capturas/$mode] Procesando: $name"
 
-        "$SCRIPT" "$vid" "$mode" --pixelize --output "$done_dir/${stem}_capturas_${mode}" \
+        "$SCRIPT" "$vid" "$mode" --pixelize $rotate_flag --output "$done_dir/${stem}_capturas_${mode}" \
             && mv "$vid" "$done_dir/$name" \
             && echo "[capturas/$mode] OK: $name → done/" \
             || echo "[capturas/$mode] ERROR procesando: $name"
