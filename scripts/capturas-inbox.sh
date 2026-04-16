@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # Procesa videos dropeados en .capturas/full/, .capturas/medium/ o .capturas/low/
-# Corre video_capture.py con el modo correspondiente (siempre con --pixelize)
-# y mueve el original a done/
+# Corre video_capture.py con el modo correspondiente y mueve el original al directorio generado.
 
 CAPTURAS="$HOME/Pictures/.inbox/.capturas"
 SCRIPT="$HOME/scripts/video_capture.py"
@@ -11,9 +10,6 @@ process_dir() {
     local pixelize="$2"   # "yes" | "no"
     local capture_mode="${3:-$mode}"   # modo para video_capture.py (default: igual al dir)
     local inbox="$CAPTURAS/$mode"
-    local done_dir="$inbox/done"
-
-    mkdir -p "$done_dir"
 
     for vid in "$inbox"/*.{mp4,mkv,avi,mov,webm,m4v,flv,wmv}; do
         [ -f "$vid" ] || continue
@@ -32,7 +28,7 @@ process_dir() {
 
         echo "[capturas/$mode] Procesando: $name (pixelize=$pixelize)"
 
-        local out_dir="$done_dir/${stem}_capturas_${mode}"
+        local out_dir="$inbox/${stem}_capturas_${mode}"
 
         "$SCRIPT" "$vid" "$capture_mode" $pixelize_flag $rotate_flag --output "$out_dir" &
         local pid=$!
