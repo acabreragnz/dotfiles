@@ -1,0 +1,8 @@
+[Unit]
+Description=Capture frames from videos dropped into .capturas/full, medium or low
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/capturas-inbox.sh
+StandardOutput=journal
+StandardError=journal

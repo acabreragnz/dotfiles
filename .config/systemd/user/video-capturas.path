@@ -1,0 +1,23 @@
+[Unit]
+Description=Watch .capturas/full, .capturas/medium, .capturas/low for new videos to capture
+
+[Path]
+PathExistsGlob=%h/Pictures/.inbox/.capturas/full/*.mp4
+PathExistsGlob=%h/Pictures/.inbox/.capturas/full/*.mkv
+PathExistsGlob=%h/Pictures/.inbox/.capturas/full/*.avi
+PathExistsGlob=%h/Pictures/.inbox/.capturas/full/*.mov
+PathExistsGlob=%h/Pictures/.inbox/.capturas/full/*.webm
+PathExistsGlob=%h/Pictures/.inbox/.capturas/medium/*.mp4
+PathExistsGlob=%h/Pictures/.inbox/.capturas/medium/*.mkv
+PathExistsGlob=%h/Pictures/.inbox/.capturas/medium/*.avi
+PathExistsGlob=%h/Pictures/.inbox/.capturas/medium/*.mov
+PathExistsGlob=%h/Pictures/.inbox/.capturas/medium/*.webm
+PathExistsGlob=%h/Pictures/.inbox/.capturas/low/*.mp4
+PathExistsGlob=%h/Pictures/.inbox/.capturas/low/*.mkv
+PathExistsGlob=%h/Pictures/.inbox/.capturas/low/*.avi
+PathExistsGlob=%h/Pictures/.inbox/.capturas/low/*.mov
+PathExistsGlob=%h/Pictures/.inbox/.capturas/low/*.webm
+Unit=video-capturas.service
+
+[Install]
+WantedBy=default.target
