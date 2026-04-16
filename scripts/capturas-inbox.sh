@@ -27,9 +27,11 @@ process_dir() {
 
         echo "[capturas/$mode] Procesando: $name"
 
-        "$SCRIPT" "$vid" "$mode" --pixelize $rotate_flag --output "$done_dir/${stem}_capturas_${mode}" \
-            && mv "$vid" "$done_dir/$name" \
-            && echo "[capturas/$mode] OK: $name → done/" \
+        local out_dir="$done_dir/${stem}_capturas_${mode}"
+
+        "$SCRIPT" "$vid" "$mode" --pixelize $rotate_flag --output "$out_dir" \
+            && mv "$vid" "$out_dir/$name" \
+            && echo "[capturas/$mode] OK: $name → $out_dir/" \
             || echo "[capturas/$mode] ERROR procesando: $name"
     done
 }
