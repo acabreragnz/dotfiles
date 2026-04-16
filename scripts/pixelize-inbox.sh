@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Procesa imágenes dropeadas en .pixelize/full/ o .pixelize/slim/
+# Procesa imágenes dropeadas en .pixelize/full/ o .pixelize/quick/
 # Corre pixelize.py con el perfil correspondiente y mueve el original a done/
 
 PIXELIZE="$HOME/Pictures/.inbox/.pixelize"
@@ -36,7 +36,21 @@ process_dir() {
             && echo "[pixelize/$profile] OK: $name → done/" \
             || echo "[pixelize/$profile] ERROR procesando: $name"
     done
+
+    # Directorios dropeados → pixelize.py los procesa enteros
+    for dir in "$inbox"/*/; do
+        [ -d "$dir" ] || continue
+        [[ "$dir" == "$done_dir"/ ]] && continue
+
+        name=$(basename "$dir")
+        echo "[pixelize/$profile] Procesando directorio: $name"
+
+        "$SCRIPT" "$dir" --profile "$profile" \
+            && mv "$dir" "$done_dir/$name" \
+            && echo "[pixelize/$profile] OK: $name → done/" \
+            || echo "[pixelize/$profile] ERROR procesando directorio: $name"
+    done
 }
 
 process_dir full
-process_dir slim
+process_dir quick
