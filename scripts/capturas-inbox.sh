@@ -21,9 +21,9 @@ process_dir() {
         name=$(basename "$vid")
         stem="${name%.*}"
 
-        # VLC recordings de la cámara IP no tienen metadata de rotación → forzar 180°
+        # VLC recordings y grabaciones rec_* de la cámara IP → forzar 180°
         rotate_flag=""
-        if echo "$name" | grep -qi "^vlc-record"; then
+        if echo "$name" | grep -qiE "^vlc-record|^rec_"; then
             rotate_flag="--rotate 180"
         fi
 
