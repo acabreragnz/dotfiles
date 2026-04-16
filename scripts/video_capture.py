@@ -18,6 +18,7 @@ Ejemplos:
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -203,6 +204,8 @@ def process(
         print(f"Pixelize: listo")
     print()
 
+    src_mtime = Path(video_path).stat().st_mtime
+
     import shutil
     if Path(output_dir).exists():
         shutil.rmtree(output_dir)
@@ -239,21 +242,23 @@ def process(
                     if boxes:
                         bgr   = apply_mosaic(bgr, boxes)
                     frame = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                _save(frame, output_dir, stem, captured + 1, ts, by_minute)
+                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime)
                 captured += 1
                 last_ts   = ts
             del frame  # libera el array grande antes del próximo frame
 
+    os.utime(output_dir, (src_mtime, src_mtime))
     return captured
 
 
-def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool) -> None:
+def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool, src_mtime: float) -> None:
     minutes  = int(ts // 60)
     seconds  = ts % 60
     filename = f"{stem}_{idx:04d}_{minutes:02d}m{seconds:05.2f}s.jpg"
     dest     = Path(output_dir) / (f"{minutes:02d}m" if by_minute else "") / filename
     dest.parent.mkdir(parents=True, exist_ok=True)
     Image.fromarray(frame).save(dest, quality=92)
+    os.utime(dest, (src_mtime, src_mtime))
 
 
 def main():

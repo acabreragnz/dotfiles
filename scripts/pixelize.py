@@ -188,16 +188,21 @@ def apply_to_all(img, boxes, fn):
     return result
 
 
-def save(path: Path, img: np.ndarray, output_dir: Path):
+def _save_file(path: Path, img: np.ndarray, output_dir: Path, src_mtime: float | None = None):
     if path.exists():
         print(f"  skip (exists) → {path.relative_to(output_dir)}")
         return
     path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(path), img)
+    if src_mtime is not None:
+        import os; os.utime(path, (src_mtime, src_mtime))
     print(f"  → {path.relative_to(output_dir)}")
 
 
-def generate(input_path: Path, output_dir: Path):
+def generate(input_path: Path, output_dir: Path, src_mtime: float | None = None):
+    def save(path, img, output_dir):
+        _save_file(path, img, output_dir, src_mtime)
+
     print(f"Loading: {input_path}")
     img = load_as_bgr(input_path)
 
@@ -214,6 +219,8 @@ def generate(input_path: Path, output_dir: Path):
     orig = output_dir / "original.jpg"
     if not orig.exists():
         cv2.imwrite(str(orig), img)
+        if src_mtime is not None:
+            import os; os.utime(orig, (src_mtime, src_mtime))
         print(f"  → original.jpg")
 
     # --- full-face (flat) ---
@@ -310,8 +317,11 @@ def generate(input_path: Path, output_dir: Path):
     print(f"\nDone. Output: {output_dir}")
 
 
-def generate_quick(input_path: Path, output_dir: Path):
+def generate_quick(input_path: Path, output_dir: Path, src_mtime: float | None = None):
     """Genera variantes rápidas: gaussian extremo, mosaic máximo, y mouth+nose reveal."""
+    def save(path, img, output_dir):
+        _save_file(path, img, output_dir, src_mtime)
+
     print(f"Loading: {input_path}")
     img = load_as_bgr(input_path)
 
@@ -327,6 +337,8 @@ def generate_quick(input_path: Path, output_dir: Path):
     orig = output_dir / "original.jpg"
     if not orig.exists():
         cv2.imwrite(str(orig), img)
+        if src_mtime is not None:
+            import os; os.utime(orig, (src_mtime, src_mtime))
         print(f"  → original.jpg")
 
     label, bf = BLUR_GAUSSIAN_LEVELS[-1]
@@ -372,10 +384,12 @@ def main():
         else input_path.parent / f"{input_path.stem}{suffix}"
     )
 
+    src_mtime = input_path.stat().st_mtime
+
     if args.profile == "quick":
-        generate_quick(input_path, output_dir)
+        generate_quick(input_path, output_dir, src_mtime)
     else:
-        generate(input_path, output_dir)
+        generate(input_path, output_dir, src_mtime)
 
 
 if __name__ == "__main__":
