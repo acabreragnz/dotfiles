@@ -362,11 +362,14 @@ def generate_quick(input_path: Path, output_dir: Path, src_mtime: float | None =
     print(f"\nDone. Output: {output_dir}")
 
 
+IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate face anonymization sample tree for a photo."
+        description="Generate face anonymization sample tree for a photo or directory."
     )
-    parser.add_argument("image", help="Path to input image (JPG, PNG, …)")
+    parser.add_argument("image", help="Path to input image or directory")
     parser.add_argument("--output-dir", help="Output directory (default: <stem>_anonymized next to input)")
     parser.add_argument("--profile", choices=["full", "quick"], default="full",
                         help="full = árbol completo (default), quick = 4 variantes fuertes")
@@ -374,22 +377,28 @@ def main():
 
     input_path = Path(args.image).expanduser().resolve()
     if not input_path.exists():
-        print(f"Error: file not found: {input_path}", file=sys.stderr)
+        print(f"Error: not found: {input_path}", file=sys.stderr)
         sys.exit(1)
 
-    suffix = "_quick" if args.profile == "quick" else "_anonymized"
-    output_dir = (
-        Path(args.output_dir).expanduser().resolve()
-        if args.output_dir
-        else input_path.parent / f"{input_path.stem}{suffix}"
-    )
-
-    src_mtime = input_path.stat().st_mtime
-
-    if args.profile == "quick":
-        generate_quick(input_path, output_dir, src_mtime)
+    if input_path.is_dir():
+        images = sorted(f for f in input_path.iterdir() if f.is_file() and f.suffix.lower() in IMAGE_EXTS)
+        if not images:
+            print(f"Error: no images found in {input_path}", file=sys.stderr)
+            sys.exit(1)
+        for img in images:
+            suffix = "_quick" if args.profile == "quick" else "_anonymized"
+            out = Path(args.output_dir).expanduser().resolve() / f"{img.stem}{suffix}" if args.output_dir else img.parent / f"{img.stem}{suffix}"
+            fn = generate_quick if args.profile == "quick" else generate
+            fn(img, out, img.stat().st_mtime)
     else:
-        generate(input_path, output_dir, src_mtime)
+        suffix = "_quick" if args.profile == "quick" else "_anonymized"
+        output_dir = (
+            Path(args.output_dir).expanduser().resolve()
+            if args.output_dir
+            else input_path.parent / f"{input_path.stem}{suffix}"
+        )
+        fn = generate_quick if args.profile == "quick" else generate
+        fn(input_path, output_dir, input_path.stat().st_mtime)
 
 
 if __name__ == "__main__":
