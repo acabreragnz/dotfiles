@@ -9,6 +9,7 @@ SCRIPT="$HOME/scripts/video_capture.py"
 process_dir() {
     local mode="$1"
     local pixelize="$2"   # "yes" | "no"
+    local capture_mode="${3:-$mode}"   # modo para video_capture.py (default: igual al dir)
     local inbox="$CAPTURAS/$mode"
     local done_dir="$inbox/done"
 
@@ -33,7 +34,7 @@ process_dir() {
 
         local out_dir="$done_dir/${stem}_capturas_${mode}"
 
-        "$SCRIPT" "$vid" "$mode" $pixelize_flag $rotate_flag --output "$out_dir" \
+        "$SCRIPT" "$vid" "$capture_mode" $pixelize_flag $rotate_flag --output "$out_dir" \
             && mv "$vid" "$out_dir/$name" \
             && echo "[capturas/$mode] OK: $name → $out_dir/" \
             || echo "[capturas/$mode] ERROR procesando: $name"
@@ -43,4 +44,4 @@ process_dir() {
 process_dir full    yes
 process_dir medium  yes
 process_dir low     yes
-process_dir gphotos no
+process_dir gphotos no full
