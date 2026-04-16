@@ -2,7 +2,9 @@
 Description=Pixelize faces in images dropped into .pixelize/full or .pixelize/slim
 
 [Service]
-Type=oneshot
+Type=simple
 ExecStart=%h/scripts/pixelize-inbox.sh
 StandardOutput=journal
 StandardError=journal
+Restart=on-abnormal
+RestartSec=5
