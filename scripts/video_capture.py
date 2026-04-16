@@ -216,17 +216,9 @@ def process(
     captured   = 0
     SCALE      = 0.25
 
-    CHECK_INTERVAL = 100  # verificar existencia del source cada N frames
-    frame_count = 0
-
     with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
         for ts, frame in stream_frames(video_path, fps, rotation, max_width, start, end):
             pbar.update(1)
-            frame_count += 1
-
-            if frame_count % CHECK_INTERVAL == 0 and not Path(video_path).exists():
-                print(f"\nArchivo fuente ya no existe, abortando: {video_path}")
-                break
 
             h, w   = frame.shape[:2]
             small  = np.array(Image.fromarray(frame).resize(
