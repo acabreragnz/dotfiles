@@ -2,8 +2,10 @@
 Description=Capture frames from videos dropped into .capturas/full, medium or low
 
 [Service]
-Type=oneshot
+Type=simple
 Environment=PATH=/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=%h/scripts/capturas-inbox.sh
 StandardOutput=journal
 StandardError=journal
+Restart=on-abnormal
+RestartSec=5
