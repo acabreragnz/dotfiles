@@ -54,7 +54,6 @@ process_dir() {
     done
 }
 
-process_dir full    yes
-process_dir medium  yes
-process_dir low     yes
-process_dir gphotos no full
+process_dir full   no
+process_dir medium no
+process_dir low    no

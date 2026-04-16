@@ -707,10 +707,9 @@ fi
 # SECCIÓN: Video Capturas (inbox watcher)
 # ==========================================
 step "Configurando video-capturas inbox watcher"
-mkdir -p "$HOME/Pictures/.inbox/.capturas/full/done"
-mkdir -p "$HOME/Pictures/.inbox/.capturas/medium/done"
-mkdir -p "$HOME/Pictures/.inbox/.capturas/low/done"
-mkdir -p "$HOME/Pictures/.inbox/.capturas/gphotos/done"
+mkdir -p "$HOME/Pictures/.inbox/.capturas/full"
+mkdir -p "$HOME/Pictures/.inbox/.capturas/medium"
+mkdir -p "$HOME/Pictures/.inbox/.capturas/low"
 chmod +x "$HOME/scripts/video_capture.py" "$HOME/scripts/capturas-inbox.sh" 2>/dev/null || true
 if systemctl --user enable --now video-capturas.path 2>/dev/null; then
   log "SUCCESS" "video-capturas.path habilitado y activo"
