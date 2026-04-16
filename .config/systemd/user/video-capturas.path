@@ -1,5 +1,5 @@
 [Unit]
-Description=Watch .capturas/full, .capturas/medium, .capturas/low for new videos to capture
+Description=Watch .capturas/full, .capturas/medium, .capturas/low, .capturas/gphotos for new videos to capture
 
 [Path]
 PathExistsGlob=%h/Pictures/.inbox/.capturas/full/*.mp4
@@ -17,6 +17,11 @@ PathExistsGlob=%h/Pictures/.inbox/.capturas/low/*.mkv
 PathExistsGlob=%h/Pictures/.inbox/.capturas/low/*.avi
 PathExistsGlob=%h/Pictures/.inbox/.capturas/low/*.mov
 PathExistsGlob=%h/Pictures/.inbox/.capturas/low/*.webm
+PathExistsGlob=%h/Pictures/.inbox/.capturas/gphotos/*.mp4
+PathExistsGlob=%h/Pictures/.inbox/.capturas/gphotos/*.mkv
+PathExistsGlob=%h/Pictures/.inbox/.capturas/gphotos/*.avi
+PathExistsGlob=%h/Pictures/.inbox/.capturas/gphotos/*.mov
+PathExistsGlob=%h/Pictures/.inbox/.capturas/gphotos/*.webm
 Unit=video-capturas.service
 
 [Install]
