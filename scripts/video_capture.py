@@ -22,11 +22,28 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from datetime import datetime
 from io import BytesIO
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
+
+_DATE_FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+_DATE_FONT = None
+
+def _draw_date(img: Image.Image, date_str: str) -> Image.Image:
+    global _DATE_FONT
+    if _DATE_FONT is None:
+        _DATE_FONT = ImageFont.truetype(_DATE_FONT_PATH, 30)
+    draw = ImageDraw.Draw(img)
+    w, h = img.size
+    bbox = draw.textbbox((0, 0), date_str, font=_DATE_FONT)
+    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
+    x = w // 2 + 2 * tw
+    y = h - th - 22
+    draw.text((x, y), date_str, font=_DATE_FONT, fill="white", stroke_width=4, stroke_fill="black")
+    return img
 
 DEFACE_SITE = "/home/tcabrera/.local/share/pipx/venvs/deface/lib/python3.12/site-packages"
 
@@ -178,6 +195,7 @@ def process(
     start: float = 0,
     end: float = 0,
     pixelize: bool = False,
+    date_overlay: bool = True,
 ) -> int:
     fps_cfg, threshold, cooldown, noise = MODES[mode]
     duration, rotation, real_fps = get_video_info(video_path)
@@ -205,6 +223,7 @@ def process(
     print()
 
     src_mtime = Path(video_path).stat().st_mtime
+    date_str = datetime.fromtimestamp(src_mtime).strftime("%d/%m/%Y") if date_overlay else None
 
     import shutil
     if Path(output_dir).exists():
@@ -242,7 +261,7 @@ def process(
                     if boxes:
                         bgr   = apply_mosaic(bgr, boxes)
                     frame = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime)
+                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime, date_str)
                 captured += 1
                 last_ts   = ts
             del frame  # libera el array grande antes del próximo frame
@@ -251,13 +270,16 @@ def process(
     return captured
 
 
-def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool, src_mtime: float) -> None:
+def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool, src_mtime: float, date_str: str | None = None) -> None:
     minutes  = int(ts // 60)
     seconds  = ts % 60
     filename = f"{stem}_{idx:04d}_{minutes:02d}m{seconds:05.2f}s.jpg"
     dest     = Path(output_dir) / (f"{minutes:02d}m" if by_minute else "") / filename
     dest.parent.mkdir(parents=True, exist_ok=True)
-    Image.fromarray(frame).save(dest, quality=92)
+    img = Image.fromarray(frame)
+    if date_str:
+        img = _draw_date(img, date_str)
+    img.save(dest, quality=92)
     os.utime(dest, (src_mtime, src_mtime))
 
 
@@ -286,6 +308,8 @@ def main():
                         help="Detener en este punto (segundos o MM:SS, default: fin del video)")
     parser.add_argument("--pixelize", "-p", action="store_true",
                         help="Aplicar mosaico fuerte sobre caras detectadas en cada captura")
+    parser.add_argument("--no-date", action="store_true",
+                        help="No agregar overlay de fecha en las capturas")
 
     args = parser.parse_args()
 
@@ -312,6 +336,7 @@ def main():
         start=parse_time(args.start),
         end=parse_time(args.end),
         pixelize=args.pixelize,
+        date_overlay=not args.no_date,
     )
 
     print(f"\nGuardados {captured} frames en: {output_dir}/")
