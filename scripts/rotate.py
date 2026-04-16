@@ -14,6 +14,7 @@ Options:
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -50,8 +51,10 @@ def main():
     total = len(images)
     for i, src in enumerate(images, 1):
         dst = out_dir / src.name
+        mtime = src.stat().st_mtime
         img = Image.open(src)
         img.rotate(args.angle, expand=True).save(dst, quality=args.quality)
+        os.utime(dst, (mtime, mtime))
         if i % 50 == 0 or i == total:
             print(f"{i}/{total} done")
 
