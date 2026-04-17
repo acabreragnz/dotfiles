@@ -51,6 +51,8 @@ def main():
     parser = argparse.ArgumentParser(description="Quema la fecha del mtime en un video")
     parser.add_argument("video", help="Ruta al video")
     parser.add_argument("--output", "-o", default=None, help="Archivo de salida (default: <nombre>_labeled.mp4)")
+    parser.add_argument("--rotate", type=int, choices=[0, 90, 180, 270], default=None,
+                        help="Forzar rotación en grados (útil para videos grabados al revés sin metadata)")
     args = parser.parse_args()
 
     src = Path(args.video).resolve()
@@ -67,6 +69,9 @@ def main():
     fps = real_fps
     total_frames = int(duration * fps)
 
+    if args.rotate is not None:
+        rotation = args.rotate
+
     # Mapear codec a encoder libav
     encoder_map = {"h264": "libx264", "hevc": "libx265", "vp9": "libvpx-vp9"}
     encoder = encoder_map.get(codec, "libx264")
@@ -74,6 +79,8 @@ def main():
     print(f"Video : {src.name}")
     print(f"Fecha : {date_str} | FPS: {fps} | Duración: {duration:.1f}s (~{total_frames} frames)")
     print(f"Codec : {codec} → {encoder} @ {bit_rate // 1000}kbps")
+    if rotation:
+        print(f"Rot.  : {rotation}° corregida")
     print(f"Salida: {dst.name}")
     print()
 
@@ -92,6 +99,9 @@ def main():
         "-map", "1:a?",
         "-c:v", encoder, "-b:v", str(bit_rate), "-pix_fmt", "yuv420p",
         "-c:a", "copy",
+        # Los frames ya salen corregidos por stream_frames; limpiar metadata de
+        # rotación para que el player no vuelva a rotar el output.
+        "-metadata:s:v:0", "rotate=0",
         str(dst)
     ]
     encoder = subprocess.Popen(encode_cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
