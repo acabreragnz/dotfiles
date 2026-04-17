@@ -23,8 +23,6 @@ import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
-from io import BytesIO
-
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
@@ -136,9 +134,31 @@ def _build_vf(fps: float, rotation: int, max_width: int = 1920) -> str:
     return ",".join(parts)
 
 
+def _get_frame_size(video_path: str, fps: float, rotation: int, max_width: int) -> tuple[int, int]:
+    """Devuelve (width, height) del primer frame tras aplicar vf."""
+    cmd = [
+        "ffmpeg", "-noautorotate", "-i", video_path,
+        "-vf", _build_vf(fps, rotation, max_width),
+        "-vframes", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"
+    ]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # Leer stderr para extraer las dimensiones del stream de salida
+    _, err = proc.communicate()
+    for line in err.decode(errors="ignore").splitlines():
+        if "Video:" in line and "rgb24" in line:
+            import re
+            m = re.search(r"(\d+)x(\d+)", line)
+            if m:
+                return int(m.group(1)), int(m.group(2))
+    raise RuntimeError(f"No se pudo determinar dimensiones del frame: {err.decode(errors='ignore')}")
+
+
 def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int = 1920,
                   start: float = 0, end: float = 0):
     """Generator que produce (timestamp, frame_rgb) en streaming desde FFmpeg."""
+    w, h = _get_frame_size(video_path, fps, rotation, max_width)
+    frame_bytes = w * h * 3  # RGB24
+
     cmd = ["ffmpeg", "-noautorotate"]
     if start > 0:
         cmd += ["-ss", str(start)]
@@ -147,35 +167,17 @@ def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int
         cmd += ["-to", str(end - start) if start > 0 else str(end)]
     cmd += [
         "-vf", _build_vf(fps, rotation, max_width),
-        "-f", "image2pipe",
-        "-vcodec", "png",
-        "-"
+        "-f", "rawvideo", "-pix_fmt", "rgb24", "-"
     ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
-    PNG_HEADER = b"\x89PNG\r\n\x1a\n"
-    PNG_END    = b"IEND\xaeB`\x82"
-    CHUNK      = 65536
-    buf        = bytearray()  # mutable: extend() no alloca objetos nuevos
-    frame_idx  = 0
-
+    frame_idx = 0
     while True:
-        chunk = proc.stdout.read(CHUNK)
-        if not chunk:
+        data = proc.stdout.read(frame_bytes)
+        if len(data) < frame_bytes:
             break
-        buf.extend(chunk)  # in-place, sin copiar todo el buffer
-        while True:
-            png_start = buf.find(PNG_HEADER)
-            if png_start == -1:
-                break
-            png_end = buf.find(PNG_END, png_start)
-            if png_end == -1:
-                break
-            png_end += len(PNG_END)
-            img = Image.open(BytesIO(buf[png_start:png_end])).convert("RGB")
-            del buf[:png_end]  # elimina in-place la parte ya procesada
-            yield start + frame_idx / fps, np.array(img)
-            frame_idx += 1
+        yield start + frame_idx / fps, np.frombuffer(data, dtype=np.uint8).reshape(h, w, 3).copy()
+        frame_idx += 1
 
     proc.wait()
 
