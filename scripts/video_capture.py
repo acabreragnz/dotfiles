@@ -23,6 +23,8 @@ import subprocess
 import sys
 from pathlib import Path
 from datetime import datetime
+from io import BytesIO
+
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
@@ -134,34 +136,9 @@ def _build_vf(fps: float, rotation: int, max_width: int = 1920) -> str:
     return ",".join(parts)
 
 
-def _get_frame_size(video_path: str, rotation: int, max_width: int) -> tuple[int, int]:
-    """Calcula (width, height) del frame de salida aplicando rotación y escalado."""
-    probe = subprocess.run(
-        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", video_path],
-        capture_output=True, text=True
-    )
-    info = json.loads(probe.stdout)
-    stream = next(s for s in info["streams"] if s["codec_type"] == "video")
-    w, h = int(stream["width"]), int(stream["height"])
-
-    r = rotation % 360
-    if r in (90, 270):
-        w, h = h, w
-
-    if max_width > 0 and w > max_width:
-        # Replica scale=w='min(max_width,iw)':h=-2 (altura par)
-        h = int(round(h * max_width / w / 2)) * 2
-        w = max_width
-
-    return w, h
-
-
 def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int = 1920,
                   start: float = 0, end: float = 0):
     """Generator que produce (timestamp, frame_rgb) en streaming desde FFmpeg."""
-    w, h = _get_frame_size(video_path, rotation, max_width)
-    frame_bytes = w * h * 3  # RGB24
-
     cmd = ["ffmpeg", "-noautorotate"]
     if start > 0:
         cmd += ["-ss", str(start)]
@@ -170,17 +147,35 @@ def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int
         cmd += ["-to", str(end - start) if start > 0 else str(end)]
     cmd += [
         "-vf", _build_vf(fps, rotation, max_width),
-        "-f", "rawvideo", "-pix_fmt", "rgb24", "-"
+        "-f", "image2pipe",
+        "-vcodec", "png",
+        "-"
     ]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
-    frame_idx = 0
+    PNG_HEADER = b"\x89PNG\r\n\x1a\n"
+    PNG_END    = b"IEND\xaeB`\x82"
+    CHUNK      = 65536
+    buf        = bytearray()  # mutable: extend() no alloca objetos nuevos
+    frame_idx  = 0
+
     while True:
-        data = proc.stdout.read(frame_bytes)
-        if len(data) < frame_bytes:
+        chunk = proc.stdout.read(CHUNK)
+        if not chunk:
             break
-        yield start + frame_idx / fps, np.frombuffer(data, dtype=np.uint8).reshape(h, w, 3).copy()
-        frame_idx += 1
+        buf.extend(chunk)  # in-place, sin copiar todo el buffer
+        while True:
+            png_start = buf.find(PNG_HEADER)
+            if png_start == -1:
+                break
+            png_end = buf.find(PNG_END, png_start)
+            if png_end == -1:
+                break
+            png_end += len(PNG_END)
+            img = Image.open(BytesIO(buf[png_start:png_end])).convert("RGB")
+            del buf[:png_end]  # elimina in-place la parte ya procesada
+            yield start + frame_idx / fps, np.array(img)
+            frame_idx += 1
 
     proc.wait()
 
