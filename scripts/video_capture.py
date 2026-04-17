@@ -134,29 +134,32 @@ def _build_vf(fps: float, rotation: int, max_width: int = 1920) -> str:
     return ",".join(parts)
 
 
-def _get_frame_size(video_path: str, fps: float, rotation: int, max_width: int) -> tuple[int, int]:
-    """Devuelve (width, height) del primer frame tras aplicar vf."""
-    cmd = [
-        "ffmpeg", "-noautorotate", "-i", video_path,
-        "-vf", _build_vf(fps, rotation, max_width),
-        "-vframes", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"
-    ]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    # Leer stderr para extraer las dimensiones del stream de salida
-    _, err = proc.communicate()
-    for line in err.decode(errors="ignore").splitlines():
-        if "Video:" in line and "rgb24" in line:
-            import re
-            m = re.search(r"(\d+)x(\d+)", line)
-            if m:
-                return int(m.group(1)), int(m.group(2))
-    raise RuntimeError(f"No se pudo determinar dimensiones del frame: {err.decode(errors='ignore')}")
+def _get_frame_size(video_path: str, rotation: int, max_width: int) -> tuple[int, int]:
+    """Calcula (width, height) del frame de salida aplicando rotación y escalado."""
+    probe = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", video_path],
+        capture_output=True, text=True
+    )
+    info = json.loads(probe.stdout)
+    stream = next(s for s in info["streams"] if s["codec_type"] == "video")
+    w, h = int(stream["width"]), int(stream["height"])
+
+    r = rotation % 360
+    if r in (90, 270):
+        w, h = h, w
+
+    if max_width > 0 and w > max_width:
+        # Replica scale=w='min(max_width,iw)':h=-2 (altura par)
+        h = int(round(h * max_width / w / 2)) * 2
+        w = max_width
+
+    return w, h
 
 
 def stream_frames(video_path: str, fps: float, rotation: int = 0, max_width: int = 1920,
                   start: float = 0, end: float = 0):
     """Generator que produce (timestamp, frame_rgb) en streaming desde FFmpeg."""
-    w, h = _get_frame_size(video_path, fps, rotation, max_width)
+    w, h = _get_frame_size(video_path, rotation, max_width)
     frame_bytes = w * h * 3  # RGB24
 
     cmd = ["ffmpeg", "-noautorotate"]
