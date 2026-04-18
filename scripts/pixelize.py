@@ -365,7 +365,7 @@ def generate_quick(input_path: Path, output_dir: Path, src_mtime: float | None =
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
 
 
-def generate_flat(input_path: Path, src_mtime: float | None = None):
+def generate_flat(input_path: Path, output_dir: Path | None = None, src_mtime: float | None = None):
     """Aplica gaussian fuerte y guarda <stem>_gaussian.jpg al lado del original (sin subdirectorio)."""
     print(f"Loading: {input_path}")
     img = load_as_bgr(input_path)
@@ -380,7 +380,8 @@ def generate_flat(input_path: Path, src_mtime: float | None = None):
     _, bf = BLUR_GAUSSIAN_LEVELS[-1]
     result = apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_gaussian_blur(im, b, _bf))
 
-    out = input_path.parent / f"{input_path.stem}_gaussian{input_path.suffix}"
+    dest_dir = output_dir if output_dir else input_path.parent
+    out = dest_dir / f"{input_path.stem}_gaussian{input_path.suffix}"
     if not out.exists():
         cv2.imwrite(str(out), result)
         if src_mtime is not None:
@@ -408,8 +409,11 @@ def main():
         if not images:
             print(f"Error: no images found in {input_path}", file=sys.stderr)
             sys.exit(1)
+        flat_out = Path(args.output_dir).expanduser().resolve() if args.output_dir else None
+        if flat_out:
+            flat_out.mkdir(parents=True, exist_ok=True)
         for img in images:
-            generate_flat(img, img.stat().st_mtime)
+            generate_flat(img, flat_out, img.stat().st_mtime)
     else:
         suffix = "_quick" if args.profile == "quick" else "_anonymized"
         output_dir = (

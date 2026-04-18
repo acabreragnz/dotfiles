@@ -18,13 +18,21 @@ if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
     exit 1
 fi
 
+get_unique_dir() {
+    local base="$1" dir="$base" n=2
+    while [[ -d "$dir" ]]; do dir="${base}_${n}"; n=$((n+1)); done
+    echo "$dir"
+}
+
 # ── Modo directorio ───────────────────────────────────────────────────────────
 if [ -d "${files[0]}" ]; then
     dir="${files[0]}"
+    outdir=$(get_unique_dir "$(dirname "$dir")/$(basename "$dir")_gaussian")
+    mkdir -p "$outdir"
 
     (
         echo "# Aplicando gaussian a imágenes en $(basename "$dir")..."
-        "$PYTHON" "$SCRIPT" "$dir" >/dev/null 2>>/tmp/pixelize.log
+        "$PYTHON" "$SCRIPT" "$dir" --output-dir "$outdir" >/dev/null 2>>/tmp/pixelize.log
         echo "# Listo"
     ) | zenity --progress \
         --title="Pixelizando directorio..." \
@@ -34,8 +42,8 @@ if [ -d "${files[0]}" ]; then
     pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
 
     action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Pixelize listo" "Gaussian aplicado a imágenes en $(basename "$dir")" --icon=emblem-photos)
-    [[ "$action" == "open" ]] && nautilus "$dir" 2>/dev/null &
+        "Pixelize listo" "→ $(basename "$outdir")" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
     exit 0
 fi
 
@@ -58,14 +66,15 @@ modo=$(zenity --list \
 
 [ -z "$modo" ] && exit 0
 
+suffix="_quick"; [[ "$modo" == "full" ]] && suffix="_anonymized"
+parent=$(dirname "${files[0]}")
+outdir=$(get_unique_dir "$parent/_pixelize${suffix}")
+mkdir -p "$outdir"
+
 declare -a output_dirs=()
 for file in "${files[@]}"; do
-    name=$(basename "$file")
-    dir=$(dirname "$file")
-    stem="${name%.*}"
-    suffix="_quick"
-    [[ "$modo" == "full" ]] && suffix="_anonymized"
-    output_dirs+=("$dir/${stem}${suffix}")
+    stem=$(basename "${file%.*}")
+    output_dirs+=("$outdir/${stem}${suffix}")
 done
 
 (
@@ -75,10 +84,8 @@ done
         i=$((i + 1))
         name=$(basename "$file")
         pct=$(( i * 100 / total ))
-
         echo "$pct"
         echo "# ($i/$total) $name"
-
         "$PYTHON" "$SCRIPT" "$file" --profile "$modo" --output-dir "${output_dirs[$((i-1))]}" >/dev/null 2>>/tmp/pixelize.log
     done
     echo "100"
@@ -99,9 +106,9 @@ if [[ $no_faces -gt 0 && $ok -eq 0 ]]; then
 elif [[ $no_faces -gt 0 ]]; then
     action=$(notify-send --wait --action="open=Abrir carpeta" \
         "Pixelize listo (con advertencias)" "$ok procesada(s), $no_faces sin caras detectadas" --icon=emblem-photos)
-    [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
+    [[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
 else
     action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Pixelize listo" "${#files[@]} imagen(es) procesada(s) en modo $modo" --icon=emblem-photos)
-    [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
+        "Pixelize listo" "${#files[@]} imagen(es) → $(basename "$outdir")" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
 fi

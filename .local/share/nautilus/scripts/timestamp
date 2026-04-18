@@ -20,6 +20,12 @@ if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
     exit 1
 fi
 
+get_unique_dir() {
+    local base="$1" dir="$base" n=2
+    while [[ -d "$dir" ]]; do dir="${base}_${n}"; n=$((n+1)); done
+    echo "$dir"
+}
+
 # ── Selección de posición ────────────────────────────────────────────────────
 pos_sel=$(zenity --list \
     --title="Timestamp — posición" \
@@ -49,6 +55,9 @@ if [ -d "${files[0]}" ]; then
         exit 1
     fi
 
+    outdir=$(get_unique_dir "$(dirname "$dir")/$(basename "$dir")_labeled")
+    mkdir -p "$outdir"
+
     WORKER_PID=""
     (
         total=${#items[@]}
@@ -61,9 +70,10 @@ if [ -d "${files[0]}" ]; then
             echo "$pct"
             echo "# ($i/$total) $name"
             if echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
-                python3 "$IMG_SCRIPT" "$item" --position "$position" >/dev/null 2>>/tmp/timestamp.log &
+                python3 "$IMG_SCRIPT" "$item" --position "$position" --output-dir "$outdir" >/dev/null 2>>/tmp/timestamp.log &
             else
-                python3 "$VID_SCRIPT" "$item" --position "$position" >/dev/null 2>>/tmp/timestamp.log &
+                stem="${name%.*}"
+                python3 "$VID_SCRIPT" "$item" --position "$position" --output "$outdir/${stem}_labeled.mp4" >/dev/null 2>>/tmp/timestamp.log &
             fi
             WORKER_PID=$!
             wait $WORKER_PID
@@ -78,8 +88,8 @@ if [ -d "${files[0]}" ]; then
 
     pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
     action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Timestamp listo" "${#items[@]} archivo(s) procesado(s)" --icon=emblem-photos)
-    [[ "$action" == "open" ]] && nautilus "$dir" 2>/dev/null &
+        "Timestamp listo" "${#items[@]} archivo(s) → $(basename "$outdir")" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
     exit 0
 fi
 
@@ -90,6 +100,10 @@ if ! echo "${ext,,}" | grep -qE "^($ALL_EXTS)$"; then
     exit 1
 fi
 
+parent=$(dirname "${files[0]}")
+outdir=$(get_unique_dir "$parent/_labeled")
+mkdir -p "$outdir"
+
 WORKER_PID=""
 (
     total=${#files[@]}
@@ -97,14 +111,15 @@ WORKER_PID=""
     for file in "${files[@]}"; do
         i=$((i + 1))
         name=$(basename "$file")
+        stem="${name%.*}"
         ext="${name##*.}"
         pct=$(( i * 100 / total ))
         echo "$pct"
         echo "# ($i/$total) $name"
         if echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
-            python3 "$IMG_SCRIPT" "$file" >/dev/null 2>>/tmp/timestamp.log &
+            python3 "$IMG_SCRIPT" "$file" --position "$position" --output-dir "$outdir" >/dev/null 2>>/tmp/timestamp.log &
         else
-            python3 "$VID_SCRIPT" "$file" >/dev/null 2>>/tmp/timestamp.log &
+            python3 "$VID_SCRIPT" "$file" --position "$position" --output "$outdir/${stem}_labeled.mp4" >/dev/null 2>>/tmp/timestamp.log &
         fi
         WORKER_PID=$!
         wait $WORKER_PID
@@ -119,25 +134,6 @@ EXIT_CODE=${PIPESTATUS[1]}
 
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
 
-failed=0
-for file in "${files[@]}"; do
-    dir=$(dirname "$file"); stem=$(basename "${file%.*}"); ext="${file##*.}"
-    if echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
-        [[ ! -f "$dir/${stem}_labeled.jpg" ]] && failed=$((failed + 1))
-    else
-        [[ ! -f "$dir/${stem}_labeled.mp4" ]] && failed=$((failed + 1))
-    fi
-done
-ok=$(( ${#files[@]} - failed ))
-
-if [[ $failed -gt 0 && $ok -eq 0 ]]; then
-    notify-send "Timestamp — error" "No se procesó ningún archivo" --icon=dialog-error
-elif [[ $failed -gt 0 ]]; then
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Timestamp listo (con errores)" "$ok procesado(s), $failed fallido(s)" --icon=emblem-photos)
-    [[ "$action" == "open" ]] && nautilus "$(dirname "${files[0]}")" 2>/dev/null &
-else
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Timestamp listo" "$ok archivo(s) procesado(s)" --icon=emblem-photos)
-    [[ "$action" == "open" ]] && nautilus "$(dirname "${files[0]}")" 2>/dev/null &
-fi
+action=$(notify-send --wait --action="open=Abrir carpeta" \
+    "Timestamp listo" "${#files[@]} archivo(s) → $(basename "$outdir")" --icon=emblem-photos)
+[[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
