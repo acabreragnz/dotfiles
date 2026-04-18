@@ -1,11 +1,15 @@
 #!/usr/bin/env bash
-# Quema la fecha (mtime) en imágenes seleccionadas en Nautilus.
-# Acepta archivos individuales o un directorio.
+# Quema la fecha (mtime) en imágenes y/o videos seleccionados en Nautilus.
+# Acepta archivos individuales (imágenes o videos) o un directorio.
 
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
-SCRIPT="$HOME/scripts/image_label.py"
+IMG_SCRIPT="$HOME/scripts/image_label.py"
+VID_SCRIPT="$HOME/scripts/video_label.py"
+
 IMAGE_EXTS="jpg|jpeg|png|webp|bmp|tiff|tif"
+VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v|flv|wmv"
+ALL_EXTS="${IMAGE_EXTS}|${VIDEO_EXTS}"
 
 mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
 files=()
@@ -19,98 +23,102 @@ fi
 # ── Modo directorio ───────────────────────────────────────────────────────────
 if [ -d "${files[0]}" ]; then
     dir="${files[0]}"
-    mapfile -t imgs < <(find "$dir" -maxdepth 1 -type f | grep -iE "\.(${IMAGE_EXTS})$" | sort)
+    mapfile -t items < <(find "$dir" -maxdepth 1 -type f | grep -iE "\.(${ALL_EXTS})$" | sort)
 
-    if [ ${#imgs[@]} -eq 0 ]; then
-        zenity --error --text="No se encontraron imágenes en el directorio." --title="Timestamp"
+    if [ ${#items[@]} -eq 0 ]; then
+        zenity --error --text="No se encontraron imágenes ni videos en el directorio." --title="Timestamp"
         exit 1
     fi
 
     WORKER_PID=""
-
     (
-        total=${#imgs[@]}
+        total=${#items[@]}
         i=0
-        for img in "${imgs[@]}"; do
+        for item in "${items[@]}"; do
             i=$((i + 1))
-            name=$(basename "$img")
+            name=$(basename "$item")
+            ext="${name##*.}"
             pct=$(( i * 100 / total ))
             echo "$pct"
             echo "# ($i/$total) $name"
-            python3 "$SCRIPT" "$img" >/dev/null 2>>/tmp/timestamp.log &
+            if echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
+                python3 "$IMG_SCRIPT" "$item" >/dev/null 2>>/tmp/timestamp.log &
+            else
+                python3 "$VID_SCRIPT" "$item" >/dev/null 2>>/tmp/timestamp.log &
+            fi
             WORKER_PID=$!
             wait $WORKER_PID
         done
         echo "100"
         echo "# Listo"
-    ) | zenity --progress \
-        --title="Aplicando timestamp..." \
-        --text="Iniciando..." \
+    ) | zenity --progress --title="Aplicando timestamp..." --text="Iniciando..." \
         --percentage=0 --auto-close --width=380
 
     EXIT_CODE=${PIPESTATUS[1]}
-    if [[ $EXIT_CODE -ne 0 && -n "$WORKER_PID" ]]; then
-        kill "$WORKER_PID" 2>/dev/null; exit 0
-    fi
+    [[ $EXIT_CODE -ne 0 && -n "$WORKER_PID" ]] && kill "$WORKER_PID" 2>/dev/null && exit 0
 
     pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
     action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Timestamp listo" "${#imgs[@]} imagen(es) procesada(s)" --icon=emblem-photos)
+        "Timestamp listo" "${#items[@]} archivo(s) procesado(s)" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "$dir" 2>/dev/null &
     exit 0
 fi
 
 # ── Modo archivos individuales ────────────────────────────────────────────────
 ext="${files[0]##*.}"
-if ! echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
-    zenity --error --text="Este script es solo para imágenes o un directorio." --title="Timestamp"
+if ! echo "${ext,,}" | grep -qE "^($ALL_EXTS)$"; then
+    zenity --error --text="Formato no soportado. Usá imágenes, videos o un directorio." --title="Timestamp"
     exit 1
 fi
 
 WORKER_PID=""
-
 (
     total=${#files[@]}
     i=0
     for file in "${files[@]}"; do
         i=$((i + 1))
         name=$(basename "$file")
+        ext="${name##*.}"
         pct=$(( i * 100 / total ))
         echo "$pct"
         echo "# ($i/$total) $name"
-        python3 "$SCRIPT" "$file" >/dev/null 2>>/tmp/timestamp.log &
+        if echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
+            python3 "$IMG_SCRIPT" "$file" >/dev/null 2>>/tmp/timestamp.log &
+        else
+            python3 "$VID_SCRIPT" "$file" >/dev/null 2>>/tmp/timestamp.log &
+        fi
         WORKER_PID=$!
         wait $WORKER_PID
     done
     echo "100"
     echo "# Listo"
-) | zenity --progress \
-    --title="Aplicando timestamp..." \
-    --text="Iniciando..." \
+) | zenity --progress --title="Aplicando timestamp..." --text="Iniciando..." \
     --percentage=0 --auto-close --width=380
 
 EXIT_CODE=${PIPESTATUS[1]}
-if [[ $EXIT_CODE -ne 0 && -n "$WORKER_PID" ]]; then
-    kill "$WORKER_PID" 2>/dev/null; exit 0
-fi
+[[ $EXIT_CODE -ne 0 && -n "$WORKER_PID" ]] && kill "$WORKER_PID" 2>/dev/null && exit 0
 
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
 
 failed=0
 for file in "${files[@]}"; do
-    dir=$(dirname "$file"); stem=$(basename "${file%.*}")
-    [[ ! -f "$dir/${stem}_labeled.jpg" ]] && failed=$((failed + 1))
+    dir=$(dirname "$file"); stem=$(basename "${file%.*}"); ext="${file##*.}"
+    if echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
+        [[ ! -f "$dir/${stem}_labeled.jpg" ]] && failed=$((failed + 1))
+    else
+        [[ ! -f "$dir/${stem}_labeled.mp4" ]] && failed=$((failed + 1))
+    fi
 done
 ok=$(( ${#files[@]} - failed ))
 
 if [[ $failed -gt 0 && $ok -eq 0 ]]; then
-    notify-send "Timestamp — error" "No se procesó ninguna imagen" --icon=dialog-error
+    notify-send "Timestamp — error" "No se procesó ningún archivo" --icon=dialog-error
 elif [[ $failed -gt 0 ]]; then
     action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Timestamp listo (con errores)" "$ok procesada(s), $failed fallida(s)" --icon=emblem-photos)
+        "Timestamp listo (con errores)" "$ok procesado(s), $failed fallido(s)" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "$(dirname "${files[0]}")" 2>/dev/null &
 else
     action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Timestamp listo" "$ok imagen(es) procesada(s)" --icon=emblem-photos)
+        "Timestamp listo" "$ok archivo(s) procesado(s)" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "$(dirname "${files[0]}")" 2>/dev/null &
 fi
