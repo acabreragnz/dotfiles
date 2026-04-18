@@ -8,6 +8,17 @@ SCRIPT="$HOME/scripts/pixelize.py"
 process_dir() {
     local profile="$1"
     local inbox="$PIXELIZE/$profile"
+    local done_dir="$inbox/done"
+
+    # Snapshot de directorios dropeados ANTES de procesar imágenes.
+    # Se excluyen dirs que ya tienen .pixelize_done (outputs de corridas anteriores).
+    local -a dropped_dirs=()
+    for d in "$inbox"/*/; do
+        [ -d "$d" ] || continue
+        [[ "$d" == "$done_dir"/ ]] && continue
+        [ -f "${d}.pixelize_done" ] && continue
+        dropped_dirs+=("$d")
+    done
 
     for img in "$inbox"/*.{jpg,jpeg,png,webp}; do
         [ -f "$img" ] || continue
@@ -31,6 +42,7 @@ process_dir() {
         if "$SCRIPT" "$img" --profile "$profile" --output-dir "$inbox/$stem"; then
             if [ -d "$inbox/$stem" ]; then
                 mv "$img" "$inbox/$stem/$name" \
+                    && touch "$inbox/$stem/.pixelize_done" \
                     && echo "[pixelize/$profile] OK: $name → $stem/"
             else
                 echo "[pixelize/$profile] Sin caras detectadas: $name (sin mover)"
@@ -40,22 +52,20 @@ process_dir() {
         fi
     done
 
-    # Directorios dropeados → pixelize.py los procesa enteros, se mueven a done/
-    # (los _anonymized/ quedan adentro del dir, no hay un generated dir único donde mover el original)
-    local done_dir="$inbox/done"
-    mkdir -p "$done_dir"
-    for dir in "$inbox"/*/; do
-        [ -d "$dir" ] || continue
-        [[ "$dir" == "$done_dir"/ ]] && continue
+    # Directorios dropeados por el usuario → procesar entero y mover a done/
+    if [ ${#dropped_dirs[@]} -gt 0 ]; then
+        mkdir -p "$done_dir"
+        for dir in "${dropped_dirs[@]}"; do
+            [ -d "$dir" ] || continue
+            name=$(basename "$dir")
+            echo "[pixelize/$profile] Procesando directorio: $name"
 
-        name=$(basename "$dir")
-        echo "[pixelize/$profile] Procesando directorio: $name"
-
-        "$SCRIPT" "$dir" --profile "$profile" \
-            && mv "$dir" "$done_dir/$name" \
-            && echo "[pixelize/$profile] OK: $name → done/" \
-            || echo "[pixelize/$profile] ERROR procesando directorio: $name"
-    done
+            "$SCRIPT" "$dir" --profile "$profile" \
+                && mv "$dir" "$done_dir/$name" \
+                && echo "[pixelize/$profile] OK: $name → done/" \
+                || echo "[pixelize/$profile] ERROR procesando directorio: $name"
+        done
+    fi
 }
 
 process_dir full
