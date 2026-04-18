@@ -209,8 +209,8 @@ def generate(input_path: Path, output_dir: Path, src_mtime: float | None = None)
     print("Detecting faces...")
     boxes, landmarks = detect_faces(img)
     if not boxes:
-        print("No faces detected. Exiting.")
-        sys.exit(0)
+        print("No faces detected. Skipping.")
+        return
     print(f"  Found {len(boxes)} face(s)")
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -328,8 +328,8 @@ def generate_quick(input_path: Path, output_dir: Path, src_mtime: float | None =
     print("Detecting faces...")
     boxes, landmarks = detect_faces(img)
     if not boxes:
-        print("No faces detected. Exiting.")
-        sys.exit(0)
+        print("No faces detected. Skipping.")
+        return
     print(f"  Found {len(boxes)} face(s)")
 
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -365,6 +365,29 @@ def generate_quick(input_path: Path, output_dir: Path, src_mtime: float | None =
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
 
 
+def generate_flat(input_path: Path, src_mtime: float | None = None):
+    """Aplica gaussian fuerte y guarda <stem>_gaussian.jpg al lado del original (sin subdirectorio)."""
+    print(f"Loading: {input_path}")
+    img = load_as_bgr(input_path)
+
+    print("Detecting faces...")
+    boxes, _ = detect_faces(img)
+    if not boxes:
+        print("No faces detected. Skipping.")
+        return
+
+    print(f"  Found {len(boxes)} face(s)")
+    _, bf = BLUR_GAUSSIAN_LEVELS[-1]
+    result = apply_to_all(img, boxes, lambda im, b, _bf=bf: apply_gaussian_blur(im, b, _bf))
+
+    out = input_path.parent / f"{input_path.stem}_gaussian{input_path.suffix}"
+    if not out.exists():
+        cv2.imwrite(str(out), result)
+        if src_mtime is not None:
+            import os; os.utime(out, (src_mtime, src_mtime))
+    print(f"  → {out.name}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Generate face anonymization sample tree for a photo or directory."
@@ -386,10 +409,7 @@ def main():
             print(f"Error: no images found in {input_path}", file=sys.stderr)
             sys.exit(1)
         for img in images:
-            suffix = "_quick" if args.profile == "quick" else "_anonymized"
-            out = Path(args.output_dir).expanduser().resolve() / f"{img.stem}{suffix}" if args.output_dir else img.parent / f"{img.stem}{suffix}"
-            fn = generate_quick if args.profile == "quick" else generate
-            fn(img, out, img.stat().st_mtime)
+            generate_flat(img, img.stat().st_mtime)
     else:
         suffix = "_quick" if args.profile == "quick" else "_anonymized"
         output_dir = (

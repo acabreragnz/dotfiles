@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Anonimiza caras en imágenes seleccionadas en Nautilus.
+# Acepta archivos individuales o un directorio.
 
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
@@ -8,16 +9,40 @@ PYTHON="/home/tcabrera/.local/share/pipx/venvs/deface/bin/python3"
 
 IMAGE_EXTS="jpg|jpeg|png|webp"
 
-mapfile -t files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+files=()
+for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
 
 if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
     zenity --error --text="No se recibieron archivos." --title="Pixelize"
     exit 1
 fi
 
+# ── Modo directorio ───────────────────────────────────────────────────────────
+if [ -d "${files[0]}" ]; then
+    dir="${files[0]}"
+
+    (
+        echo "# Aplicando gaussian a imágenes en $(basename "$dir")..."
+        "$PYTHON" "$SCRIPT" "$dir" >/dev/null 2>>/tmp/pixelize.log
+        echo "# Listo"
+    ) | zenity --progress \
+        --title="Pixelizando directorio..." \
+        --text="Iniciando..." \
+        --percentage=0 --pulsate --auto-close --width=380
+
+    pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+
+    action=$(notify-send --wait --action="open=Abrir carpeta" \
+        "Pixelize listo" "Gaussian aplicado a imágenes en $(basename "$dir")" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "$dir" 2>/dev/null &
+    exit 0
+fi
+
+# ── Modo archivos individuales ────────────────────────────────────────────────
 ext="${files[0]##*.}"
 if ! echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
-    zenity --error --text="Este script es solo para imágenes (jpg, png, webp)." --title="Pixelize"
+    zenity --error --text="Este script es solo para imágenes (jpg, png, webp) o un directorio." --title="Pixelize"
     exit 1
 fi
 
@@ -33,23 +58,28 @@ modo=$(zenity --list \
 
 [ -z "$modo" ] && exit 0
 
+declare -a output_dirs=()
+for file in "${files[@]}"; do
+    name=$(basename "$file")
+    dir=$(dirname "$file")
+    stem="${name%.*}"
+    suffix="_quick"
+    [[ "$modo" == "full" ]] && suffix="_anonymized"
+    output_dirs+=("$dir/${stem}${suffix}")
+done
+
 (
     total=${#files[@]}
     i=0
     for file in "${files[@]}"; do
         i=$((i + 1))
         name=$(basename "$file")
-        dir=$(dirname "$file")
-        stem="${name%.*}"
         pct=$(( i * 100 / total ))
 
         echo "$pct"
         echo "# ($i/$total) $name"
 
-        out_dir="$dir/$stem"
-        "$PYTHON" "$SCRIPT" "$file" --profile "$modo" --output-dir "$out_dir" 2>/dev/null
-
-        [ -d "$out_dir" ] && touch "$out_dir/.pixelize_done"
+        "$PYTHON" "$SCRIPT" "$file" --profile "$modo" --output-dir "${output_dirs[$((i-1))]}" >/dev/null 2>>/tmp/pixelize.log
     done
     echo "100"
     echo "# Listo"
@@ -59,4 +89,19 @@ modo=$(zenity --list \
     --percentage=0 --auto-close --width=380
 
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
-notify-send "Pixelize" "${#files[@]} imagen(es) procesada(s) en modo $modo" --icon=emblem-photos
+
+no_faces=0
+for d in "${output_dirs[@]}"; do [[ ! -d "$d" ]] && no_faces=$((no_faces + 1)); done
+ok=$(( ${#files[@]} - no_faces ))
+
+if [[ $no_faces -gt 0 && $ok -eq 0 ]]; then
+    notify-send "Pixelize — sin caras" "No se detectaron caras en ninguna imagen" --icon=dialog-warning
+elif [[ $no_faces -gt 0 ]]; then
+    action=$(notify-send --wait --action="open=Abrir carpeta" \
+        "Pixelize listo (con advertencias)" "$ok procesada(s), $no_faces sin caras detectadas" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
+else
+    action=$(notify-send --wait --action="open=Abrir carpeta" \
+        "Pixelize listo" "${#files[@]} imagen(es) procesada(s) en modo $modo" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
+fi

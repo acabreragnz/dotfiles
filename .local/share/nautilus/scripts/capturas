@@ -7,7 +7,9 @@ SCRIPT="$HOME/scripts/video_capture.py"
 
 VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v|flv|wmv"
 
-mapfile -t files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+files=()
+for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
 
 if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
     zenity --error --text="No se recibieron archivos." --title="Capturas"
@@ -20,18 +22,39 @@ if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
     exit 1
 fi
 
-modo=$(zenity --list \
+opciones=$(zenity --list \
     --title="Capturar frames" \
     --text="Elegí el modo para ${#files[@]} archivo(s):" \
-    --radiolist \
-    --column="" --column="Modo" --column="Descripción" \
+    --checklist \
+    --column="" --column="Opción" --column="Descripción" \
     --print-column=2 \
-    TRUE  "medium" "Movimiento significativo (4 FPS) — recomendado" \
-    FALSE "full"   "Todos los frames (FPS real del video)" \
-    FALSE "low"    "Solo cambios grandes (2 FPS)" \
-    --width=560 --height=400)
+    TRUE  "medium"   "Movimiento significativo (4 FPS) — recomendado" \
+    FALSE "full"     "Todos los frames (FPS real del video)" \
+    FALSE "low"      "Solo cambios grandes (2 FPS)" \
+    FALSE "pixelize" "Anonimizar caras en los frames capturados" \
+    --width=580 --height=420 2>/dev/null)
 
-[ -z "$modo" ] && exit 0
+[ -z "$opciones" ] && exit 0
+
+# Separar modo de flags
+modo="medium"
+pixelize_flag=""
+for opt in $(echo "$opciones" | tr '|' ' '); do
+    case "$opt" in
+        full|medium|low) modo="$opt" ;;
+        pixelize)        pixelize_flag="--pixelize" ;;
+    esac
+done
+
+declare -a output_dirs=()
+for file in "${files[@]}"; do
+    name=$(basename "$file")
+    dir=$(dirname "$file")
+    stem="${name%.*}"
+    output_dirs+=("$dir/${stem}_capturas_${modo}")
+done
+
+WORKER_PID=""
 
 (
     total=${#files[@]}
@@ -39,20 +62,15 @@ modo=$(zenity --list \
     for file in "${files[@]}"; do
         i=$((i + 1))
         name=$(basename "$file")
-        dir=$(dirname "$file")
-        stem="${name%.*}"
         pct=$(( i * 100 / total ))
 
         echo "$pct"
         echo "# ($i/$total) $name"
 
-        rotate_flag=""
-        if echo "$name" | grep -qiE "^vlc-record|^rec_"; then
-            rotate_flag="--rotate 180"
-        fi
-
-        python3 "$SCRIPT" "$file" "$modo" $rotate_flag \
-            --output "$dir/${stem}_capturas_${modo}" 2>/dev/null
+        python3 "$SCRIPT" "$file" "$modo" $pixelize_flag \
+            --output "${output_dirs[$((i-1))]}" >/dev/null 2>/dev/null &
+        WORKER_PID=$!
+        wait $WORKER_PID
     done
     echo "100"
     echo "# Listo"
@@ -61,5 +79,26 @@ modo=$(zenity --list \
     --text="Iniciando..." \
     --percentage=0 --auto-close --width=380
 
+EXIT_CODE=${PIPESTATUS[1]}
+if [[ $EXIT_CODE -ne 0 && -n "$WORKER_PID" ]]; then
+    kill "$WORKER_PID" 2>/dev/null
+    exit 0
+fi
+
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
-notify-send "Capturas" "${#files[@]} archivo(s) procesado(s) en modo $modo" --icon=emblem-photos
+
+failed=0
+for d in "${output_dirs[@]}"; do [[ ! -d "$d" ]] && failed=$((failed + 1)); done
+ok=$(( ${#files[@]} - failed ))
+
+if [[ $failed -gt 0 && $ok -eq 0 ]]; then
+    notify-send "Capturas — error" "No se generaron frames en ningún video" --icon=dialog-error
+elif [[ $failed -gt 0 ]]; then
+    action=$(notify-send --wait --action="open=Abrir carpeta" \
+        "Capturas listas (con errores)" "$ok procesado(s), $failed fallido(s)" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
+else
+    action=$(notify-send --wait --action="open=Abrir carpeta" \
+        "Capturas listas" "$ok archivo(s) en modo $modo" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
+fi

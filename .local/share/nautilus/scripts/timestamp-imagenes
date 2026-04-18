@@ -1,0 +1,116 @@
+#!/usr/bin/env bash
+# Quema la fecha (mtime) en imágenes seleccionadas en Nautilus.
+# Acepta archivos individuales o un directorio.
+
+export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+SCRIPT="$HOME/scripts/image_label.py"
+IMAGE_EXTS="jpg|jpeg|png|webp|bmp|tiff|tif"
+
+mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+files=()
+for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
+
+if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
+    zenity --error --text="No se recibieron archivos." --title="Timestamp"
+    exit 1
+fi
+
+# ── Modo directorio ───────────────────────────────────────────────────────────
+if [ -d "${files[0]}" ]; then
+    dir="${files[0]}"
+    mapfile -t imgs < <(find "$dir" -maxdepth 1 -type f | grep -iE "\.(${IMAGE_EXTS})$" | sort)
+
+    if [ ${#imgs[@]} -eq 0 ]; then
+        zenity --error --text="No se encontraron imágenes en el directorio." --title="Timestamp"
+        exit 1
+    fi
+
+    WORKER_PID=""
+
+    (
+        total=${#imgs[@]}
+        i=0
+        for img in "${imgs[@]}"; do
+            i=$((i + 1))
+            name=$(basename "$img")
+            pct=$(( i * 100 / total ))
+            echo "$pct"
+            echo "# ($i/$total) $name"
+            python3 "$SCRIPT" "$img" >/dev/null 2>>/tmp/timestamp.log &
+            WORKER_PID=$!
+            wait $WORKER_PID
+        done
+        echo "100"
+        echo "# Listo"
+    ) | zenity --progress \
+        --title="Aplicando timestamp..." \
+        --text="Iniciando..." \
+        --percentage=0 --auto-close --width=380
+
+    EXIT_CODE=${PIPESTATUS[1]}
+    if [[ $EXIT_CODE -ne 0 && -n "$WORKER_PID" ]]; then
+        kill "$WORKER_PID" 2>/dev/null; exit 0
+    fi
+
+    pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+    action=$(notify-send --wait --action="open=Abrir carpeta" \
+        "Timestamp listo" "${#imgs[@]} imagen(es) procesada(s)" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "$dir" 2>/dev/null &
+    exit 0
+fi
+
+# ── Modo archivos individuales ────────────────────────────────────────────────
+ext="${files[0]##*.}"
+if ! echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
+    zenity --error --text="Este script es solo para imágenes o un directorio." --title="Timestamp"
+    exit 1
+fi
+
+WORKER_PID=""
+
+(
+    total=${#files[@]}
+    i=0
+    for file in "${files[@]}"; do
+        i=$((i + 1))
+        name=$(basename "$file")
+        pct=$(( i * 100 / total ))
+        echo "$pct"
+        echo "# ($i/$total) $name"
+        python3 "$SCRIPT" "$file" >/dev/null 2>>/tmp/timestamp.log &
+        WORKER_PID=$!
+        wait $WORKER_PID
+    done
+    echo "100"
+    echo "# Listo"
+) | zenity --progress \
+    --title="Aplicando timestamp..." \
+    --text="Iniciando..." \
+    --percentage=0 --auto-close --width=380
+
+EXIT_CODE=${PIPESTATUS[1]}
+if [[ $EXIT_CODE -ne 0 && -n "$WORKER_PID" ]]; then
+    kill "$WORKER_PID" 2>/dev/null; exit 0
+fi
+
+pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+
+failed=0
+for file in "${files[@]}"; do
+    dir=$(dirname "$file"); stem=$(basename "${file%.*}")
+    [[ ! -f "$dir/${stem}_labeled.jpg" ]] && failed=$((failed + 1))
+done
+ok=$(( ${#files[@]} - failed ))
+
+if [[ $failed -gt 0 && $ok -eq 0 ]]; then
+    notify-send "Timestamp — error" "No se procesó ninguna imagen" --icon=dialog-error
+elif [[ $failed -gt 0 ]]; then
+    action=$(notify-send --wait --action="open=Abrir carpeta" \
+        "Timestamp listo (con errores)" "$ok procesada(s), $failed fallida(s)" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "$(dirname "${files[0]}")" 2>/dev/null &
+else
+    action=$(notify-send --wait --action="open=Abrir carpeta" \
+        "Timestamp listo" "$ok imagen(es) procesada(s)" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "$(dirname "${files[0]}")" 2>/dev/null &
+fi
