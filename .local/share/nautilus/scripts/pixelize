@@ -6,10 +6,18 @@ export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local
 SCRIPT="$HOME/scripts/pixelize.py"
 PYTHON="/home/tcabrera/.local/share/pipx/venvs/deface/bin/python3"
 
+IMAGE_EXTS="jpg|jpeg|png|webp"
+
 mapfile -t files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
 
 if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
     zenity --error --text="No se recibieron archivos." --title="Pixelize"
+    exit 1
+fi
+
+ext="${files[0]##*.}"
+if ! echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
+    zenity --error --text="Este script es solo para imágenes (jpg, png, webp)." --title="Pixelize"
     exit 1
 fi
 

@@ -5,10 +5,18 @@ export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local
 
 SCRIPT="$HOME/scripts/video_capture.py"
 
+VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v|flv|wmv"
+
 mapfile -t files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
 
 if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
     zenity --error --text="No se recibieron archivos." --title="Capturas"
+    exit 1
+fi
+
+ext="${files[0]##*.}"
+if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
+    zenity --error --text="Este script es solo para videos." --title="Capturas"
     exit 1
 fi
 
