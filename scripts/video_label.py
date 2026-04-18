@@ -53,6 +53,8 @@ def main():
     parser.add_argument("--output", "-o", default=None, help="Archivo de salida (default: <nombre>_labeled.mp4)")
     parser.add_argument("--rotate", type=int, choices=[0, 90, 180, 270], default=None,
                         help="Forzar rotación en grados (útil para videos grabados al revés sin metadata)")
+    parser.add_argument("--position", choices=["right", "left", "both"], default="right",
+                        help="Posición del timestamp (default: right)")
     args = parser.parse_args()
 
     src = Path(args.video).resolve()
@@ -107,7 +109,7 @@ def main():
     encoder = subprocess.Popen(encode_cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
     def write_frame(frame):
-        img = _draw_date(Image.fromarray(frame), date_str)
+        img = _draw_date(Image.fromarray(frame), date_str, args.position)
         encoder.stdin.write(np.array(img).tobytes())
 
     with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:

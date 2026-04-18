@@ -30,7 +30,7 @@ from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 
 _DATE_FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
-def _draw_date(img: Image.Image, date_str: str) -> Image.Image:
+def _draw_date(img: Image.Image, date_str: str, position: str = "right") -> Image.Image:
     _, h = img.size
     font_size = max(16, int(h * 0.025))
     font = ImageFont.truetype(_DATE_FONT_PATH, font_size)
@@ -38,9 +38,12 @@ def _draw_date(img: Image.Image, date_str: str) -> Image.Image:
     w, h = img.size
     bbox = draw.textbbox((0, 0), date_str, font=font)
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    x = w // 2 + 2 * tw
     y = h - th - int(h * 0.02)
-    draw.text((x, y), date_str, font=font, fill="white", stroke_width=max(2, font_size // 12), stroke_fill="black")
+    stroke = max(2, font_size // 12)
+    sides = ["right", "left"] if position == "both" else [position]
+    for side in sides:
+        x = w // 2 + 2 * tw if side == "right" else w // 2 - 3 * tw
+        draw.text((x, y), date_str, font=font, fill="white", stroke_width=stroke, stroke_fill="black")
     return img
 
 DEFACE_SITE = "/home/tcabrera/.local/share/pipx/venvs/deface/lib/python3.12/site-packages"

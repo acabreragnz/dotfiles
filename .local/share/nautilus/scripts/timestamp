@@ -20,6 +20,25 @@ if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
     exit 1
 fi
 
+# ── Selección de posición ────────────────────────────────────────────────────
+pos_sel=$(zenity --list \
+    --title="Timestamp — posición" \
+    --text="¿Dónde poner la fecha?" \
+    --checklist \
+    --column="" --column="Lado" \
+    --print-column=2 \
+    TRUE  "derecha" \
+    FALSE "izquierda" \
+    --width=300 --height=220)
+
+[ -z "$pos_sel" ] && exit 0
+
+case "$pos_sel" in
+    "derecha|izquierda"|"izquierda|derecha") position="both" ;;
+    "izquierda") position="left" ;;
+    *)           position="right" ;;
+esac
+
 # ── Modo directorio ───────────────────────────────────────────────────────────
 if [ -d "${files[0]}" ]; then
     dir="${files[0]}"
@@ -42,9 +61,9 @@ if [ -d "${files[0]}" ]; then
             echo "$pct"
             echo "# ($i/$total) $name"
             if echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
-                python3 "$IMG_SCRIPT" "$item" >/dev/null 2>>/tmp/timestamp.log &
+                python3 "$IMG_SCRIPT" "$item" --position "$position" >/dev/null 2>>/tmp/timestamp.log &
             else
-                python3 "$VID_SCRIPT" "$item" >/dev/null 2>>/tmp/timestamp.log &
+                python3 "$VID_SCRIPT" "$item" --position "$position" >/dev/null 2>>/tmp/timestamp.log &
             fi
             WORKER_PID=$!
             wait $WORKER_PID
