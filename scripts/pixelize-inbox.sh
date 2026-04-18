@@ -28,10 +28,16 @@ process_dir() {
 
         echo "[pixelize/$profile] Procesando: $name"
 
-        "$SCRIPT" "$img" --profile "$profile" --output-dir "$inbox/$stem" \
-            && mv "$img" "$inbox/$stem/$name" \
-            && echo "[pixelize/$profile] OK: $name → $stem/" \
-            || echo "[pixelize/$profile] ERROR procesando: $name"
+        if "$SCRIPT" "$img" --profile "$profile" --output-dir "$inbox/$stem"; then
+            if [ -d "$inbox/$stem" ]; then
+                mv "$img" "$inbox/$stem/$name" \
+                    && echo "[pixelize/$profile] OK: $name → $stem/"
+            else
+                echo "[pixelize/$profile] Sin caras detectadas: $name (sin mover)"
+            fi
+        else
+            echo "[pixelize/$profile] ERROR procesando: $name"
+        fi
     done
 
     # Directorios dropeados → pixelize.py los procesa enteros, se mueven a done/
