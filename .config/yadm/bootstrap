@@ -5,7 +5,6 @@ set -o pipefail  # Fallar en pipes si algún comando falla
 # ==========================================
 # Variables Globales
 # ==========================================
-TOTAL_STEPS=25
 CURRENT_STEP=0
 APT_UPDATED=false
 TEMP_FILES=()
@@ -33,7 +32,7 @@ log() {
 # ==========================================
 step() {
   CURRENT_STEP=$((CURRENT_STEP + 1))
-  log "INFO" ">>> PASO $CURRENT_STEP/$TOTAL_STEPS: $*"
+  log "INFO" ">>> PASO $CURRENT_STEP: $*"
 }
 
 ensure_apt_updated() {
@@ -687,35 +686,6 @@ if command -v npm >/dev/null 2>&1; then
   done
 else
   log "WARNING" "npm no disponible, salteando paquetes npm globales"
-fi
-
-# ==========================================
-# SECCIÓN: Pixelize (inbox watcher)
-# ==========================================
-step "Configurando pixelize inbox watcher"
-mkdir -p "$HOME/Pictures/.inbox/.pixelize/full/done"
-mkdir -p "$HOME/Pictures/.inbox/.pixelize/quick/done"
-chmod +x "$HOME/scripts/pixelize.py" "$HOME/scripts/pixelize-inbox.sh" 2>/dev/null || true
-if systemctl --user enable --now anonymize-faces.path 2>/dev/null; then
-  log "SUCCESS" "anonymize-faces.path habilitado y activo"
-else
-  log "WARNING" "No se pudo habilitar anonymize-faces.path (puede requerir sesión gráfica)"
-  log "INFO" "Para habilitarlo manualmente: systemctl --user enable --now anonymize-faces.path"
-fi
-
-# ==========================================
-# SECCIÓN: Video Capturas (inbox watcher)
-# ==========================================
-step "Configurando video-capturas inbox watcher"
-mkdir -p "$HOME/Pictures/.inbox/.capturas/full"
-mkdir -p "$HOME/Pictures/.inbox/.capturas/medium"
-mkdir -p "$HOME/Pictures/.inbox/.capturas/low"
-chmod +x "$HOME/scripts/video_capture.py" "$HOME/scripts/capturas-inbox.sh" 2>/dev/null || true
-if systemctl --user enable --now video-capturas.path 2>/dev/null; then
-  log "SUCCESS" "video-capturas.path habilitado y activo"
-else
-  log "WARNING" "No se pudo habilitar video-capturas.path (puede requerir sesión gráfica)"
-  log "INFO" "Para habilitarlo manualmente: systemctl --user enable --now video-capturas.path"
 fi
 
 # ==========================================
