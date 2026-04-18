@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# Captura frames de videos seleccionados en Nautilus.
+
+export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+SCRIPT="$HOME/scripts/video_capture.py"
+
+mapfile -t files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+
+if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
+    zenity --error --text="No se recibieron archivos." --title="Capturas"
+    exit 1
+fi
+
+modo=$(zenity --list \
+    --title="Capturar frames" \
+    --text="Elegí el modo para ${#files[@]} archivo(s):" \
+    --radiolist \
+    --column="" --column="Modo" --column="Descripción" \
+    --print-column=2 \
+    TRUE  "medium" "Movimiento significativo (4 FPS) — recomendado" \
+    FALSE "full"   "Todos los frames (FPS real del video)" \
+    FALSE "low"    "Solo cambios grandes (2 FPS)" \
+    --width=560 --height=400)
+
+[ -z "$modo" ] && exit 0
+
+(
+    total=${#files[@]}
+    i=0
+    for file in "${files[@]}"; do
+        i=$((i + 1))
+        name=$(basename "$file")
+        dir=$(dirname "$file")
+        stem="${name%.*}"
+        pct=$(( i * 100 / total ))
+
+        echo "$pct"
+        echo "# ($i/$total) $name"
+
+        rotate_flag=""
+        if echo "$name" | grep -qiE "^vlc-record|^rec_"; then
+            rotate_flag="--rotate 180"
+        fi
+
+        python3 "$SCRIPT" "$file" "$modo" $rotate_flag \
+            --output "$dir/${stem}_capturas_${modo}" 2>/dev/null
+    done
+    echo "100"
+    echo "# Listo"
+) | zenity --progress \
+    --title="Capturando frames..." \
+    --text="Iniciando..." \
+    --percentage=0 --auto-close --width=380
+
+pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+notify-send "Capturas" "${#files[@]} archivo(s) procesado(s) en modo $modo" --icon=emblem-photos

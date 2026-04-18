@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Anonimiza caras en imágenes seleccionadas en Nautilus.
+
+export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+SCRIPT="$HOME/scripts/pixelize.py"
+PYTHON="/home/tcabrera/.local/share/pipx/venvs/deface/bin/python3"
+
+mapfile -t files <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+
+if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
+    zenity --error --text="No se recibieron archivos." --title="Pixelize"
+    exit 1
+fi
+
+modo=$(zenity --list \
+    --title="Pixelizar imágenes" \
+    --text="Elegí el perfil para ${#files[@]} archivo(s):" \
+    --radiolist \
+    --column="" --column="Modo" --column="Descripción" \
+    --print-column=2 \
+    TRUE  "quick" "Variantes esenciales — rápido" \
+    FALSE "full"  "Todas las variantes de anonimización" \
+    --width=560 --height=360)
+
+[ -z "$modo" ] && exit 0
+
+(
+    total=${#files[@]}
+    i=0
+    for file in "${files[@]}"; do
+        i=$((i + 1))
+        name=$(basename "$file")
+        dir=$(dirname "$file")
+        stem="${name%.*}"
+        pct=$(( i * 100 / total ))
+
+        echo "$pct"
+        echo "# ($i/$total) $name"
+
+        out_dir="$dir/$stem"
+        "$PYTHON" "$SCRIPT" "$file" --profile "$modo" --output-dir "$out_dir" 2>/dev/null
+
+        [ -d "$out_dir" ] && touch "$out_dir/.pixelize_done"
+    done
+    echo "100"
+    echo "# Listo"
+) | zenity --progress \
+    --title="Pixelizando..." \
+    --text="Iniciando..." \
+    --percentage=0 --auto-close --width=380
+
+pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+notify-send "Pixelize" "${#files[@]} imagen(es) procesada(s) en modo $modo" --icon=emblem-photos
