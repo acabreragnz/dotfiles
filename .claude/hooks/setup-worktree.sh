@@ -77,7 +77,7 @@ if [ -d "$CWD/docs/tickets" ]; then
     echo "Copied docs/tickets to worktree" >&2
 
     # Create CURRENT.md symlink pointing to the ticket file for this branch
-    TICKET_NUM=$(echo "$NAME" | grep -oiE 'eng-[0-9]+' | head -1 | tr '[:lower:]' '[:upper:]')
+    TICKET_NUM=$(echo "$NAME" | grep -oiE 'eng-[0-9]+' | head -1 | tr '[:lower:]' '[:upper:]') || true
     if [ -n "$TICKET_NUM" ]; then
         TICKET_FILE="$WORKTREE_PATH/docs/tickets/${TICKET_NUM}.md"
         if [ -f "$TICKET_FILE" ]; then
@@ -85,6 +85,12 @@ if [ -d "$CWD/docs/tickets" ]; then
             echo "Created CURRENT.md -> ${TICKET_NUM}.md" >&2
         fi
     fi
+fi
+
+# Install dependencies in the new worktree (skip if node_modules already exists)
+if [ -f "$WORKTREE_PATH/package.json" ] && [ ! -d "$WORKTREE_PATH/node_modules" ]; then
+    echo "Running yarn install in worktree..." >&2
+    (cd "$WORKTREE_PATH" && yarn install --frozen-lockfile 2>&1 | tail -5) >&2 || true
 fi
 
 echo "$WORKTREE_PATH"

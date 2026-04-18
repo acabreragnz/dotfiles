@@ -2,7 +2,7 @@
 name: triage-pr-comments
 description: Use when reviewing or triaging comments on a GitHub PR.
 allowed-tools: Bash(git *), Bash(gh *), Read, Grep, Glob, Edit, Write
-argument-hint: [pr-url|branch-name|pr-number]
+argument-hint: 'pr-url|branch-name|pr-number'
 ---
 
 ## Context

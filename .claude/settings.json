@@ -86,7 +86,6 @@
       "Edit(~/.claude/plans/**)",
       "Bash(docker exec:*)",
       "mcp__chrome-devtools__*",
-      "mcp__plugin_context7_context7__*",
       "mcp__figma__get_screenshot",
       "mcp__figma__create_design_system_rules",
       "mcp__figma__get_design_context",
@@ -333,7 +332,7 @@
     "claude-md-management@claude-plugins-official": true,
     "claude-code-setup@claude-plugins-official": true,
     "playwright@claude-plugins-official": false,
-    "context7@claude-plugins-official": true,
+    "context7@claude-plugins-official": false,
     "commit-commands@claude-plugins-official": true,
     "supabase@claude-plugins-official": true,
     "hookify@claude-plugins-official": true,
@@ -341,7 +340,8 @@
     "pr-review-toolkit@claude-code-plugins": true,
     "example-skills@anthropic-agent-skills": true,
     "frontend-design@claude-plugins-official": true,
-    "pr-review-toolkit@claude-plugins-official": true
+    "pr-review-toolkit@claude-plugins-official": true,
+    "warp@claude-code-warp": true
   },
   "extraKnownMarketplaces": {
     "voicemode": {
@@ -355,10 +355,17 @@
         "source": "github",
         "repo": "anthropics/claude-code"
       }
+    },
+    "claude-code-warp": {
+      "source": {
+        "source": "github",
+        "repo": "warpdotdev/claude-code-warp"
+      }
     }
   },
-  "alwaysThinkingEnabled": true,
+  "effortLevel": "medium",
+  "showClearContextOnPlanAccept": true,
   "autoUpdatesChannel": "latest",
-  "voiceEnabled": true,
-  "skipDangerousModePermissionPrompt": true
+  "skipDangerousModePermissionPrompt": true,
+  "voiceEnabled": true
 }

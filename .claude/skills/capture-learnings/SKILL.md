@@ -1,7 +1,7 @@
 ---
 name: capture-learnings
 description: Use when the user asks to capture or list session learnings, says "qué aprendimos", "listá los aprendizajes", "resumí la sesión", or "qué recordamos de esta sesión".
-argument-hint: [tema opcional]
+argument-hint: 'tema opcional'
 ---
 
 ## Task
@@ -21,17 +21,21 @@ Review the full conversation looking for:
 
 ### Step 2 — Filter duplicates
 
-Cross-reference each candidate learning against the CLAUDE.md and MEMORY.md content already injected above. Discard anything already documented there.
+Cross-reference each candidate learning against the CLAUDE.md and MEMORY.md content already injected above. Also discard anything that was **already saved during this same session** (e.g. skill edits Claude made earlier in the conversation). Only present items that are genuinely new and not yet persisted anywhere.
 
 ### Step 3 — Present the list
 
-Output a numbered list. For each item include:
+Output two sections:
+
+**Pendientes de guardar** — numbered list with items genuinely new and not yet saved. For each:
 - **Qué:** what was learned, concisely and concretely
 - **Por qué:** why it's relevant for future sessions
 - **Dónde:** where to save it — one of:
   - `CLAUDE.md global` (~/.claude/CLAUDE.md) — permanent instructions, preferences, behaviors
   - `MEMORY.md proyecto` (memory/ in current project) — project-specific context
   - `Skill: <nombre>` — update an existing skill with new behavior
+
+**Ya guardados esta sesión** — single line listing them briefly (no detail needed, just names/topics). Omit this section entirely if nothing was saved during the session.
 
 Keep each item short. No fluff.
 

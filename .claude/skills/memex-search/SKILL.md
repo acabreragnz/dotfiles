@@ -162,6 +162,7 @@ In the TUI (`memex tui`), press `S` to share the selected session.
 
 ## Recommended LLM Flow
 
+0) **Reindex first** — always run `memex index --source <project-logs-path>` before searching to ensure recent sessions are included. The index can be days stale without this step.
 1) `memex search "query" --limit 20`
 2) Pick hits using `matches` or `snippet`
 3) `memex show <doc_id>` or `memex session <session_id>`
