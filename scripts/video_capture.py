@@ -44,14 +44,19 @@ def _draw_date(img: Image.Image, date_str: str, position: str = "right") -> Imag
     y = h - th - int(h * 0.02)
     stroke = max(2, font_size // 12)
     margin = int(w * 0.04)
-    sides = ["right", "left"] if position == "both" else [position]
+    if position == "both":
+        sides = ["right", "left"]
+    else:
+        sides = [s for s in position.replace("|", ",").split(",") if s]
     for side in sides:
         if side == "right":
             x = w - tw - margin
         elif side == "left":
             x = margin
-        else:
+        elif side == "center":
             x = (w - tw) // 2
+        else:
+            continue
         draw.text((x, y), date_str, font=font, fill="white", stroke_width=stroke, stroke_fill="black")
     return img
 

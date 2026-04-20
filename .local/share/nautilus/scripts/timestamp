@@ -31,24 +31,20 @@ get_unique_dir() {
 # ── Selección de posición ────────────────────────────────────────────────────
 pos_sel=$(zenity --list \
     --title="Timestamp — posición" \
-    --text="¿Dónde poner la fecha?" \
-    --radiolist \
+    --text="¿Dónde poner la fecha? (podés elegir varias)" \
+    --checklist \
     --column="" --column="Posición" \
     --print-column=2 \
+    --separator="," \
     TRUE  "derecha" \
     FALSE "izquierda" \
     FALSE "centro" \
-    FALSE "ambos (izq + der)" \
     --width=480 --height=360)
 
 [ -z "$pos_sel" ] && exit 0
 
-case "$pos_sel" in
-    "izquierda")         position="left" ;;
-    "centro")            position="center" ;;
-    "ambos (izq + der)") position="both" ;;
-    *)                   position="right" ;;
-esac
+position=$(echo "$pos_sel" \
+    | sed 's/derecha/right/g; s/izquierda/left/g; s/centro/center/g')
 
 # ── Modo directorio ───────────────────────────────────────────────────────────
 if [ -d "${files[0]}" ]; then

@@ -30,8 +30,8 @@ def main():
     parser.add_argument("images", nargs="+", help="Imágenes a procesar")
     parser.add_argument("--output-dir", "-o", default=None, help="Directorio de salida (default: junto al original)")
     parser.add_argument("--quality", type=int, default=95, help="Calidad JPEG (default: 95)")
-    parser.add_argument("--position", choices=["right", "left", "center", "both"], default="right",
-                        help="Posición del timestamp (default: right)")
+    parser.add_argument("--position", default="right",
+                        help="Posición(es) del timestamp: right, left, center, both, o combinación separada por coma (ej: left,center,right). Default: right")
     args = parser.parse_args()
 
     for path_str in args.images:
