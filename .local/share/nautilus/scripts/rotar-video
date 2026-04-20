@@ -69,8 +69,18 @@ PID_FILE=$(mktemp)
         echo "$pct"
         echo "# ($i/$total) $name"
 
+        codec=$(ffprobe -v quiet -select_streams v:0 \
+            -show_entries stream=codec_name \
+            -of default=noprint_wrappers=1:nokey=1 "$file" 2>/dev/null)
+        case "$codec" in
+            mjpeg) vcodec="mjpeg";      quality_flags=(-q:v 2) ;              pix_fmt=() ;;
+            hevc)  vcodec="libx265";    quality_flags=(-crf 15) ;             pix_fmt=(-pix_fmt yuv420p) ;;
+            vp9)   vcodec="libvpx-vp9"; quality_flags=(-crf 18 -b:v 0) ;     pix_fmt=(-pix_fmt yuv420p) ;;
+            *)     vcodec="libx264";    quality_flags=(-crf 15 -preset slow) ; pix_fmt=(-pix_fmt yuv420p) ;;
+        esac
+
         mkdir -p "$outdir"
-        ffmpeg -y -i "$file" -vf "$vf" -c:v libx264 -crf 15 -preset slow \
+        ffmpeg -y -i "$file" -vf "$vf" -c:v "$vcodec" "${quality_flags[@]}" "${pix_fmt[@]}" \
                -c:a copy -map_metadata 0 -metadata:s:v:0 rotate=0 "$out" 2>/dev/null &
         echo $! > "$PID_FILE"
         wait

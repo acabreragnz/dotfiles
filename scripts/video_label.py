@@ -74,7 +74,7 @@ def main():
     if args.rotate is not None:
         rotation = args.rotate
 
-    encoder_map = {"h264": "libx264", "hevc": "libx265", "vp9": "libvpx-vp9"}
+    encoder_map = {"h264": "libx264", "hevc": "libx265", "vp9": "libvpx-vp9", "mjpeg": "mjpeg"}
     encoder = encoder_map.get(codec, "libx264")
 
     print(f"Video : {src.name}")
@@ -99,8 +99,10 @@ def main():
         "-map", "0:v",
         "-map", "1:a?",
         "-c:v", encoder,
-        *(["-crf", "18", "-b:v", "0"] if encoder == "libvpx-vp9" else ["-crf", "15"]),
-        "-pix_fmt", "yuv420p",
+        *(["-crf", "18", "-b:v", "0"] if encoder == "libvpx-vp9"
+          else ["-q:v", "2"] if encoder == "mjpeg"
+          else ["-crf", "15", "-preset", "slow"]),
+        *([] if encoder == "mjpeg" else ["-pix_fmt", "yuv420p"]),
         "-c:a", "copy",
         # Los frames ya salen corregidos por stream_frames; limpiar metadata de
         # rotación para que el player no vuelva a rotar el output.
