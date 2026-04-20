@@ -99,7 +99,7 @@ def main():
         "-map", "0:v",
         "-map", "1:a?",
         "-c:v", encoder,
-        *(["-crf", "30", "-b:v", "0"] if encoder == "libvpx-vp9" else ["-crf", "18"]),
+        *(["-crf", "18", "-b:v", "0"] if encoder == "libvpx-vp9" else ["-crf", "15"]),
         "-pix_fmt", "yuv420p",
         "-c:a", "copy",
         # Los frames ya salen corregidos por stream_frames; limpiar metadata de
@@ -107,21 +107,32 @@ def main():
         "-metadata:s:v:0", "rotate=0",
         str(dst)
     ]
-    encoder = subprocess.Popen(encode_cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    ffmpeg_log = open("/tmp/video_label_ffmpeg.log", "w")
+    enc_proc = subprocess.Popen(encode_cmd, stdin=subprocess.PIPE, stderr=ffmpeg_log)
 
     def write_frame(frame):
         img = _draw_date(Image.fromarray(frame), date_str, args.position)
-        encoder.stdin.write(np.array(img).tobytes())
+        enc_proc.stdin.write(np.array(img).tobytes())
 
-    with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
-        write_frame(first)
-        pbar.update(1)
-        for _, frame in gen:
-            write_frame(frame)
+    try:
+        with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
+            write_frame(first)
             pbar.update(1)
+            for _, frame in gen:
+                write_frame(frame)
+                pbar.update(1)
+        enc_proc.stdin.close()
+    except BrokenPipeError:
+        ffmpeg_log.flush()
+        print(f"\nError: ffmpeg terminó inesperadamente. Ver /tmp/video_label_ffmpeg.log", file=sys.stderr)
+        sys.exit(1)
+    finally:
+        ffmpeg_log.close()
 
-    encoder.stdin.close()
-    encoder.wait()
+    ret = enc_proc.wait()
+    if ret != 0:
+        print(f"\nError: ffmpeg salió con código {ret}. Ver /tmp/video_label_ffmpeg.log", file=sys.stderr)
+        sys.exit(1)
 
     os.utime(dst, (src_mtime, src_mtime))
     print(f"\nGuardado: {dst}")

@@ -28,7 +28,7 @@ def main():
     parser = argparse.ArgumentParser(description="Quema la fecha del mtime en imágenes")
     parser.add_argument("images", nargs="+", help="Imágenes a procesar")
     parser.add_argument("--output-dir", "-o", default=None, help="Directorio de salida (default: junto al original)")
-    parser.add_argument("--quality", type=int, default=92, help="Calidad JPEG (default: 92)")
+    parser.add_argument("--quality", type=int, default=95, help="Calidad JPEG (default: 95)")
     parser.add_argument("--position", choices=["right", "left", "both"], default="right",
                         help="Posición del timestamp (default: right)")
     args = parser.parse_args()
@@ -47,10 +47,13 @@ def main():
 
         out_dir = Path(args.output_dir).resolve() if args.output_dir else src.parent
         out_dir.mkdir(parents=True, exist_ok=True)
-        dst = out_dir / f"{src.stem}_labeled.jpg"
+        ext = src.suffix.lower()
+        out_ext = ext if ext in {".png", ".webp", ".tiff", ".tif"} else ".jpg"
+        dst = out_dir / f"{src.stem}_labeled{out_ext}"
 
         img = _draw_date(Image.open(src).convert("RGB"), date_str, args.position)
-        img.save(dst, quality=args.quality)
+        save_kwargs = {} if out_ext != ".jpg" else {"quality": args.quality}
+        img.save(dst, **save_kwargs)
         os.utime(dst, (mtime, mtime))
         print(f"  → {dst.name}")
 

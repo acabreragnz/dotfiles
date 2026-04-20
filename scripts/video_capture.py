@@ -278,7 +278,7 @@ def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by
     img = Image.fromarray(frame)
     if date_str:
         img = _draw_date(img, date_str)
-    img.save(dest, quality=92)
+    img.save(dest, quality=95)
     os.utime(dest, (src_mtime, src_mtime))
 
 

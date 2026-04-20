@@ -70,7 +70,7 @@ PID_FILE=$(mktemp)
         echo "# ($i/$total) $name"
 
         mkdir -p "$outdir"
-        ffmpeg -y -i "$file" -vf "$vf" -c:v libx264 -crf 18 -preset fast \
+        ffmpeg -y -i "$file" -vf "$vf" -c:v libx264 -crf 15 -preset slow \
                -c:a copy -map_metadata 0 -metadata:s:v:0 rotate=0 "$out" 2>/dev/null &
         echo $! > "$PID_FILE"
         wait
