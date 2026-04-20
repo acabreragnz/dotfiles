@@ -54,7 +54,7 @@ def main():
     parser.add_argument("--output", "-o", default=None, help="Archivo de salida (default: <nombre>_labeled.mp4)")
     parser.add_argument("--rotate", type=int, choices=[0, 90, 180, 270], default=None,
                         help="Forzar rotación en grados (útil para videos grabados al revés sin metadata)")
-    parser.add_argument("--position", choices=["right", "left", "both"], default="right",
+    parser.add_argument("--position", choices=["right", "left", "center", "both"], default="right",
                         help="Posición del timestamp (default: right)")
     args = parser.parse_args()
 

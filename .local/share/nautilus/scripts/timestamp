@@ -32,19 +32,22 @@ get_unique_dir() {
 pos_sel=$(zenity --list \
     --title="Timestamp — posición" \
     --text="¿Dónde poner la fecha?" \
-    --checklist \
-    --column="" --column="Lado" \
+    --radiolist \
+    --column="" --column="Posición" \
     --print-column=2 \
     TRUE  "derecha" \
     FALSE "izquierda" \
-    --width=300 --height=220)
+    FALSE "centro" \
+    FALSE "ambos (izq + der)" \
+    --width=480 --height=360)
 
 [ -z "$pos_sel" ] && exit 0
 
 case "$pos_sel" in
-    "derecha|izquierda"|"izquierda|derecha") position="both" ;;
-    "izquierda") position="left" ;;
-    *)           position="right" ;;
+    "izquierda")         position="left" ;;
+    "centro")            position="center" ;;
+    "ambos (izq + der)") position="both" ;;
+    *)                   position="right" ;;
 esac
 
 # ── Modo directorio ───────────────────────────────────────────────────────────
