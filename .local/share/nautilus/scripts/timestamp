@@ -102,9 +102,12 @@ if ! echo "${ext,,}" | grep -qE "^($ALL_EXTS)$"; then
     exit 1
 fi
 
-parent=$(dirname "${files[0]}")
-outdir=$(get_unique_dir "$parent/_labeled")
-mkdir -p "$outdir"
+declare -a output_dirs=()
+for file in "${files[@]}"; do
+    parent=$(dirname "$file")
+    stem=$(basename "${file%.*}")
+    output_dirs+=("$(get_unique_dir "$parent/${stem}_labeled")")
+done
 
 WORKER_PID=""
 (
@@ -115,6 +118,8 @@ WORKER_PID=""
         name=$(basename "$file")
         stem="${name%.*}"
         ext="${name##*.}"
+        outdir="${output_dirs[$((i-1))]}"
+        mkdir -p "$outdir"
         pct=$(( i * 100 / total ))
         echo "$pct"
         echo "# ($i/$total) $name"
@@ -137,5 +142,5 @@ EXIT_CODE=${PIPESTATUS[1]}
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
 
 action=$(notify-send --wait --action="open=Abrir carpeta" \
-    "Timestamp listo" "${#files[@]} archivo(s) → $(basename "$outdir")" --icon=emblem-photos)
-[[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
+    "Timestamp listo" "${#files[@]} archivo(s) → $(basename "${output_dirs[-1]}")" --icon=emblem-photos)
+[[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
