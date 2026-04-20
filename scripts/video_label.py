@@ -74,7 +74,6 @@ def main():
     if args.rotate is not None:
         rotation = args.rotate
 
-    # Mapear codec a encoder libav
     encoder_map = {"h264": "libx264", "hevc": "libx265", "vp9": "libvpx-vp9"}
     encoder = encoder_map.get(codec, "libx264")
 
@@ -99,7 +98,9 @@ def main():
         "-i", str(src),
         "-map", "0:v",
         "-map", "1:a?",
-        "-c:v", encoder, "-b:v", str(bit_rate), "-pix_fmt", "yuv420p",
+        "-c:v", encoder,
+        *(["-crf", "30", "-b:v", "0"] if encoder == "libvpx-vp9" else ["-crf", "18"]),
+        "-pix_fmt", "yuv420p",
         "-c:a", "copy",
         # Los frames ya salen corregidos por stream_frames; limpiar metadata de
         # rotación para que el player no vuelva a rotar el output.

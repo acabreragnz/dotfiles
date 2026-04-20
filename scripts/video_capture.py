@@ -40,9 +40,10 @@ def _draw_date(img: Image.Image, date_str: str, position: str = "right") -> Imag
     tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
     y = h - th - int(h * 0.02)
     stroke = max(2, font_size // 12)
+    margin = int(w * 0.04)
     sides = ["right", "left"] if position == "both" else [position]
     for side in sides:
-        x = w // 2 + 2 * tw if side == "right" else w // 2 - 3 * tw
+        x = w - tw - margin if side == "right" else margin
         draw.text((x, y), date_str, font=font, fill="white", stroke_width=stroke, stroke_fill="black")
     return img
 
@@ -226,10 +227,7 @@ def process(
     src_mtime = Path(video_path).stat().st_mtime
     date_str = datetime.fromtimestamp(src_mtime).strftime("%d/%m/%Y") if date_overlay else None
 
-    import shutil
-    if Path(output_dir).exists():
-        shutil.rmtree(output_dir)
-    Path(output_dir).mkdir(parents=True)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
 
     prev_small = None
     last_ts    = -cooldown

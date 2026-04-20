@@ -4,7 +4,6 @@
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 SCRIPT="$HOME/scripts/video_capture.py"
-
 VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v|flv|wmv"
 
 mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
@@ -22,39 +21,58 @@ if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
     exit 1
 fi
 
-opciones=$(zenity --list \
+# ── Selección de modo (radiolist) ─────────────────────────────────────────────
+modo=$(zenity --list \
     --title="Capturar frames" \
     --text="Elegí el modo para ${#files[@]} archivo(s):" \
-    --checklist \
-    --column="" --column="Opción" --column="Descripción" \
+    --radiolist \
+    --column="" --column="Modo" --column="Descripción" \
     --print-column=2 \
-    TRUE  "medium"   "Movimiento significativo (4 FPS) — recomendado" \
-    FALSE "full"     "Todos los frames (FPS real del video)" \
-    FALSE "low"      "Solo cambios grandes (2 FPS)" \
-    FALSE "pixelize" "Anonimizar caras en los frames capturados" \
-    --width=580 --height=420 2>/dev/null)
+    TRUE  "medium" "Movimiento significativo (4 FPS) — recomendado" \
+    FALSE "full"   "Todos los frames (FPS real del video)" \
+    FALSE "low"    "Solo cambios grandes (2 FPS)" \
+    --width=580 --height=300)
 
-[ -z "$opciones" ] && exit 0
+[ -z "$modo" ] && exit 0
 
-# Separar modo de flags
-modo="medium"
+# ── Opción pixelize (checkbox separado) ───────────────────────────────────────
 pixelize_flag=""
-for opt in $(echo "$opciones" | tr '|' ' '); do
-    case "$opt" in
-        full|medium|low) modo="$opt" ;;
-        pixelize)        pixelize_flag="--pixelize" ;;
-    esac
-done
+zenity --question \
+    --title="Capturas — pixelize" \
+    --text="¿Anonimizar caras en los frames capturados?" \
+    --ok-label="Sí" --cancel-label="No" --default-cancel 2>/dev/null \
+    && pixelize_flag="--pixelize"
 
+# ── Warning para modo full ────────────────────────────────────────────────────
+if [[ "$modo" == "full" ]]; then
+    total_frames=0
+    for file in "${files[@]}"; do
+        fps_raw=$(ffprobe -v quiet -select_streams v:0 \
+            -show_entries stream=r_frame_rate \
+            -of default=noprint_wrappers=1:nokey=1 "$file" 2>/dev/null)
+        dur=$(ffprobe -v quiet -select_streams v:0 \
+            -show_entries stream=duration \
+            -of default=noprint_wrappers=1:nokey=1 "$file" 2>/dev/null | awk '{print int($1+0.5)}')
+        fps=$(echo "$fps_raw" | awk -F/ '{if($2>0) printf "%d", $1/$2; else print 0}')
+        total_frames=$(( total_frames + fps * dur ))
+    done
+    if [[ $total_frames -gt 500 ]]; then
+        zenity --question \
+            --title="Capturas — modo full" \
+            --text="El modo full va a generar aproximadamente <b>$total_frames frames</b>.\n¿Continuar?" \
+            --ok-label="Continuar" --cancel-label="Cancelar" 2>/dev/null || exit 0
+    fi
+fi
+
+# ── Output dirs ───────────────────────────────────────────────────────────────
 declare -a output_dirs=()
 for file in "${files[@]}"; do
-    name=$(basename "$file")
     dir=$(dirname "$file")
-    stem="${name%.*}"
+    stem=$(basename "${file%.*}")
     output_dirs+=("$dir/${stem}_capturas_${modo}")
 done
 
-WORKER_PID=""
+PID_FILE=$(mktemp)
 
 (
     total=${#files[@]}
@@ -63,14 +81,12 @@ WORKER_PID=""
         i=$((i + 1))
         name=$(basename "$file")
         pct=$(( i * 100 / total ))
-
         echo "$pct"
         echo "# ($i/$total) $name"
-
         python3 "$SCRIPT" "$file" "$modo" $pixelize_flag \
             --output "${output_dirs[$((i-1))]}" >/dev/null 2>/dev/null &
-        WORKER_PID=$!
-        wait $WORKER_PID
+        echo $! > "$PID_FILE"
+        wait
     done
     echo "100"
     echo "# Listo"
@@ -80,10 +96,12 @@ WORKER_PID=""
     --percentage=0 --auto-close --width=380
 
 EXIT_CODE=${PIPESTATUS[1]}
-if [[ $EXIT_CODE -ne 0 && -n "$WORKER_PID" ]]; then
-    kill "$WORKER_PID" 2>/dev/null
-    exit 0
+if [[ $EXIT_CODE -ne 0 ]]; then
+    WPID=$(cat "$PID_FILE" 2>/dev/null)
+    [[ -n "$WPID" ]] && kill "$WPID" 2>/dev/null
+    rm -f "$PID_FILE"; exit 0
 fi
+rm -f "$PID_FILE"
 
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
 

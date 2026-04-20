@@ -397,6 +397,8 @@ def main():
     parser.add_argument("--output-dir", help="Output directory (default: <stem>_anonymized next to input)")
     parser.add_argument("--profile", choices=["full", "quick"], default="full",
                         help="full = árbol completo (default), quick = 4 variantes fuertes")
+    parser.add_argument("--flat", action="store_true",
+                        help="Gaussian plano sin subdirectorio (implica imagen individual)")
     args = parser.parse_args()
 
     input_path = Path(args.image).expanduser().resolve()
@@ -414,6 +416,9 @@ def main():
             flat_out.mkdir(parents=True, exist_ok=True)
         for img in images:
             generate_flat(img, flat_out, img.stat().st_mtime)
+    elif args.flat:
+        out_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else None
+        generate_flat(input_path, out_dir, input_path.stat().st_mtime)
     else:
         suffix = "_quick" if args.profile == "quick" else "_anonymized"
         output_dir = (

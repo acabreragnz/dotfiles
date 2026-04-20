@@ -55,6 +55,8 @@ for file in "${files[@]}"; do
     output_files+=("$outdir/${stem}_rotado.mp4")
 done
 
+PID_FILE=$(mktemp)
+
 (
     total=${#files[@]}
     i=0
@@ -69,7 +71,9 @@ done
 
         mkdir -p "$outdir"
         ffmpeg -y -i "$file" -vf "$vf" -c:v libx264 -crf 18 -preset fast \
-               -c:a copy -map_metadata 0 -metadata:s:v:0 rotate=0 "$out" 2>/dev/null
+               -c:a copy -map_metadata 0 -metadata:s:v:0 rotate=0 "$out" 2>/dev/null &
+        echo $! > "$PID_FILE"
+        wait
         touch -r "$file" "$out" 2>/dev/null
     done
     echo "100"
@@ -78,6 +82,14 @@ done
     --title="Rotando video..." \
     --text="Iniciando..." \
     --percentage=0 --auto-close --width=380
+
+EXIT_CODE=${PIPESTATUS[1]}
+if [[ $EXIT_CODE -ne 0 ]]; then
+    WPID=$(cat "$PID_FILE" 2>/dev/null)
+    [[ -n "$WPID" ]] && kill "$WPID" 2>/dev/null
+    rm -f "$PID_FILE"; exit 0
+fi
+rm -f "$PID_FILE"
 
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
 

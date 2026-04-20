@@ -27,22 +27,48 @@ get_unique_dir() {
 # ── Modo directorio ───────────────────────────────────────────────────────────
 if [ -d "${files[0]}" ]; then
     dir="${files[0]}"
+    mapfile -t imgs < <(find "$dir" -maxdepth 1 -type f | grep -iE "\.(${IMAGE_EXTS})$" | sort)
+
+    if [ ${#imgs[@]} -eq 0 ]; then
+        zenity --error --text="No se encontraron imágenes en el directorio." --title="Pixelize"
+        exit 1
+    fi
+
     outdir=$(get_unique_dir "$(dirname "$dir")/$(basename "$dir")_gaussian")
     mkdir -p "$outdir"
 
+    PID_FILE=$(mktemp)
     (
-        echo "# Aplicando gaussian a imágenes en $(basename "$dir")..."
-        "$PYTHON" "$SCRIPT" "$dir" --output-dir "$outdir" >/dev/null 2>>/tmp/pixelize.log
+        total=${#imgs[@]}
+        i=0
+        for img in "${imgs[@]}"; do
+            i=$((i + 1))
+            name=$(basename "$img")
+            pct=$(( i * 100 / total ))
+            echo "$pct"
+            echo "# ($i/$total) $name"
+            "$PYTHON" "$SCRIPT" "$img" --flat --output-dir "$outdir" >/dev/null 2>>/tmp/pixelize.log &
+            echo $! > "$PID_FILE"
+            wait
+        done
+        echo "100"
         echo "# Listo"
     ) | zenity --progress \
         --title="Pixelizando directorio..." \
         --text="Iniciando..." \
-        --percentage=0 --pulsate --auto-close --width=380
+        --percentage=0 --auto-close --width=380
+
+    EXIT_CODE=${PIPESTATUS[1]}
+    if [[ $EXIT_CODE -ne 0 ]]; then
+        WPID=$(cat "$PID_FILE" 2>/dev/null)
+        [[ -n "$WPID" ]] && kill "$WPID" 2>/dev/null
+        rm -f "$PID_FILE"; exit 0
+    fi
+    rm -f "$PID_FILE"
 
     pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
-
     action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Pixelize listo" "→ $(basename "$outdir")" --icon=emblem-photos)
+        "Pixelize listo" "${#imgs[@]} imagen(es) → $(basename "$outdir")" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
     exit 0
 fi
