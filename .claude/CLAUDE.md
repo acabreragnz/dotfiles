@@ -34,6 +34,7 @@
 - **Impresora:** Brother DCP-165C configurada via CUPS. Imprimir: `lp -d DCP165C "/path/to/archivo.pdf"`. Verificar estado: `lpstat -p`. **Siempre leer el PDF antes de imprimir** — puede ser el archivo equivocado o tener restricciones (ej: firma electrónica que pierde validez al imprimir).
 - **Imágenes descargadas — NO leer sin verificar:** nunca usar la herramienta Read sobre un archivo `.png` (u otra imagen) descargado por Claude sin verificar primero que realmente es una imagen (`file <path>`). Hay un bug de Claude Code que causa loop infinito al intentar leer un archivo que no es imagen real.
 - **Template de descripciones de tareas Todoist:** todo skill o flujo que cree o edite tareas debe seguir `.claude/task-description-template.md` del vault Obsidian (`~/personal/obsidian/second-brain/.claude/task-description-template.md`). Leer ese archivo antes de escribir cualquier descripción.
+- **Cloudflare Quick Tunnel para dev servers:** cuando el usuario pida exponer un `localhost:PORT` (Vite, Storybook, Next dev, etc.), usar siempre `cloudflared tunnel --url http://localhost:PORT --http-host-header localhost:PORT`. El flag `--http-host-header` es **obligatorio** porque Vite/Storybook bloquean hosts no listados en `allowedHosts` y devuelven `403 Invalid host` sin él. Correr en background, esperar ~8s y extraer la URL con `grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com'` del output.
 
 ## Apps de uso frecuente
 
