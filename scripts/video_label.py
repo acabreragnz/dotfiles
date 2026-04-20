@@ -24,6 +24,7 @@ import json
 
 sys.path.insert(0, str(Path(__file__).parent))
 from video_capture import _draw_date, get_video_info, stream_frames
+from filename_date import effective_mtime
 
 
 def get_video_codec_info(video_path: str) -> tuple[str, int]:
@@ -64,7 +65,7 @@ def main():
 
     dst = Path(args.output).resolve() if args.output else src.parent / f"{src.stem}_labeled.mp4"
 
-    src_mtime = src.stat().st_mtime
+    src_mtime = effective_mtime(src)
     date_str = datetime.fromtimestamp(src_mtime).strftime("%d/%m/%Y")
     duration, rotation, real_fps = get_video_info(str(src))
     codec, bit_rate = get_video_codec_info(str(src))

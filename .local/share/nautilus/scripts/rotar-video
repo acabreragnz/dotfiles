@@ -21,7 +21,9 @@ if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
 fi
 
 get_unique_dir() {
-    local base="$1" dir="$base" n=2
+    local base="$1"
+    local dir="$base"
+    local n=2
     while [[ -d "$dir" ]]; do dir="${base}_${n}"; n=$((n+1)); done
     echo "$dir"
 }

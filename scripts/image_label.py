@@ -18,6 +18,7 @@ from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent))
 from video_capture import _draw_date
+from filename_date import effective_mtime
 
 from datetime import datetime
 
@@ -42,7 +43,7 @@ def main():
             print(f"SKIP: no es imagen '{src.name}'", file=sys.stderr)
             continue
 
-        mtime = src.stat().st_mtime
+        mtime = effective_mtime(src)
         date_str = datetime.fromtimestamp(mtime).strftime("%d/%m/%Y")
 
         out_dir = Path(args.output_dir).resolve() if args.output_dir else src.parent

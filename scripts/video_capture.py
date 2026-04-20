@@ -29,6 +29,9 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from filename_date import effective_mtime
+
 _DATE_FONT_PATH = "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
 def _draw_date(img: Image.Image, date_str: str, position: str = "right") -> Image.Image:
     _, h = img.size
@@ -224,7 +227,7 @@ def process(
         print(f"Pixelize: listo")
     print()
 
-    src_mtime = Path(video_path).stat().st_mtime
+    src_mtime = effective_mtime(video_path)
     date_str = datetime.fromtimestamp(src_mtime).strftime("%d/%m/%Y") if date_overlay else None
 
     Path(output_dir).mkdir(parents=True, exist_ok=True)

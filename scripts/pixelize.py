@@ -30,6 +30,9 @@ import cv2
 import numpy as np
 from PIL import Image
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from filename_date import effective_mtime  # noqa: E402
+
 DEFACE_SITE = "/home/tcabrera/.local/share/pipx/venvs/deface/lib/python3.12/site-packages"
 if DEFACE_SITE not in sys.path:
     sys.path.insert(0, DEFACE_SITE)
@@ -415,10 +418,10 @@ def main():
         if flat_out:
             flat_out.mkdir(parents=True, exist_ok=True)
         for img in images:
-            generate_flat(img, flat_out, img.stat().st_mtime)
+            generate_flat(img, flat_out, effective_mtime(img))
     elif args.flat:
         out_dir = Path(args.output_dir).expanduser().resolve() if args.output_dir else None
-        generate_flat(input_path, out_dir, input_path.stat().st_mtime)
+        generate_flat(input_path, out_dir, effective_mtime(input_path))
     else:
         suffix = "_quick" if args.profile == "quick" else "_anonymized"
         output_dir = (
@@ -427,7 +430,7 @@ def main():
             else input_path.parent / f"{input_path.stem}{suffix}"
         )
         fn = generate_quick if args.profile == "quick" else generate
-        fn(input_path, output_dir, input_path.stat().st_mtime)
+        fn(input_path, output_dir, effective_mtime(input_path))
 
 
 if __name__ == "__main__":

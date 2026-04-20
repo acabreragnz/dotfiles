@@ -19,7 +19,9 @@ if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
 fi
 
 get_unique_dir() {
-    local base="$1" dir="$base" n=2
+    local base="$1"
+    local dir="$base"
+    local n=2
     while [[ -d "$dir" ]]; do dir="${base}_${n}"; n=$((n+1)); done
     echo "$dir"
 }
@@ -93,14 +95,12 @@ modo=$(zenity --list \
 [ -z "$modo" ] && exit 0
 
 suffix="_quick"; [[ "$modo" == "full" ]] && suffix="_anonymized"
-parent=$(dirname "${files[0]}")
-outdir=$(get_unique_dir "$parent/_pixelize${suffix}")
-mkdir -p "$outdir"
 
 declare -a output_dirs=()
 for file in "${files[@]}"; do
+    parent=$(dirname "$file")
     stem=$(basename "${file%.*}")
-    output_dirs+=("$outdir/${stem}${suffix}")
+    output_dirs+=("$(get_unique_dir "$parent/${stem}${suffix}")")
 done
 
 (
@@ -132,9 +132,9 @@ if [[ $no_faces -gt 0 && $ok -eq 0 ]]; then
 elif [[ $no_faces -gt 0 ]]; then
     action=$(notify-send --wait --action="open=Abrir carpeta" \
         "Pixelize listo (con advertencias)" "$ok procesada(s), $no_faces sin caras detectadas" --icon=emblem-photos)
-    [[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
+    [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
 else
     action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Pixelize listo" "${#files[@]} imagen(es) → $(basename "$outdir")" --icon=emblem-photos)
-    [[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
+        "Pixelize listo" "${#files[@]} imagen(es) → $(basename "${output_dirs[-1]}")" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
 fi

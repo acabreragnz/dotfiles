@@ -20,6 +20,9 @@ from pathlib import Path
 
 from PIL import Image
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from filename_date import effective_mtime
+
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
 
 
@@ -51,7 +54,7 @@ def main():
     total = len(images)
     for i, src in enumerate(images, 1):
         dst = out_dir / src.name
-        mtime = src.stat().st_mtime
+        mtime = effective_mtime(src)
         img = Image.open(src)
         img.rotate(args.angle, expand=True).save(dst, quality=args.quality)
         os.utime(dst, (mtime, mtime))
