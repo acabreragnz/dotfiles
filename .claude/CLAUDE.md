@@ -65,6 +65,14 @@
 - **Shortcuts en Drive para carpetas de viaje/proyecto:** no mover archivos de su carpeta canónica (Auto, Documentos de Identidad, Mascotas, etc.). Usar `mimeType: application/vnd.google-apps.shortcut` + `shortcutDetails.targetId` para crear accesos directos. La carpeta del viaje/proyecto solo tiene docs propios + shortcuts a los de referencia.
 - **Re-auth (token revocado):** generar `/tmp/gws-login.sh` con `gws auth login --account acabreragnz@gmail.com --scopes "..."` (ver scopes completos en skill `gws-workspace`) y pedir al usuario `! bash /tmp/gws-login.sh`. Nunca pegar el comando directo — los scopes se parten en el chat.
 
+# Zenity / Diálogos GUI
+
+- **Altura de diálogos siempre calculada por cantidad de opciones** — no hardcodear valores chicos. Regla:
+  - `--list` / `--radiolist` / `--checklist`: `altura = 140 + (N_opciones * 45)` px
+  - `--forms`: `altura = 120 + (N_campos * 50)` px
+  - Mínimo absoluto 260 px para cualquier diálogo; sumar ~60 si hay texto descriptivo largo arriba.
+  - Si dudás entre dos valores, elegí el más alto — diálogos apretados son peor UX que uno con aire extra.
+
 # Subagentes
 
 - **Background por defecto**: correr subagentes con `run_in_background: true` salvo que el resultado sea bloqueante para el siguiente paso. Nunca dejar al usuario sin respuesta.
