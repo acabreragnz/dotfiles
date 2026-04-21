@@ -29,8 +29,11 @@ if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
     exit 1
 fi
 
-# Duración total del video (para mostrar en el form)
+# Metadata del video (para mostrar en el form)
 duration_total=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$src" 2>/dev/null | awk '{printf "%.1f", $1}')
+dims=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$src" 2>/dev/null)
+orig_w=$(echo "$dims" | cut -dx -f1)
+orig_h=$(echo "$dims" | cut -dx -f2)
 
 # Preset de calidad
 preset=$(zenity --list \
@@ -55,15 +58,15 @@ esac
 # Form de configuración (vacío = aplica el default mostrado entre paréntesis)
 values=$(zenity --forms \
     --title="Video → GIF" \
-    --text="Config para: $(basename "$src")  (${duration_total}s)\nDejá vacío para usar el default entre paréntesis." \
+    --text="Archivo: $(basename "$src")\nDuración total: ${duration_total}s   ·   Original: ${orig_w}×${orig_h} px\n\nDejá Inicio y Fin vacíos = video entero. Ancho acepta 'max' = original.\n" \
     --add-entry="Inicio — seg o HH:MM:SS (0)" \
     --add-entry="Fin — seg de duración, o HH:MM:SS (hasta el final)" \
     --add-entry="FPS (${DEF_FPS})" \
-    --add-entry="Ancho px (${DEF_W})" \
+    --add-entry="Ancho px (${DEF_W}, 'max' = ${orig_w})" \
     --add-entry="Calidad 1-100 (${DEF_Q})" \
     --add-combo="Pixelar caras" --combo-values="No|Sí (mosaic)" \
     --separator="|" \
-    --width=460 --height=468)
+    --width=520 --height=508)
 
 [ -z "$values" ] && exit 0
 
@@ -75,6 +78,11 @@ START="${START:-0}"
 FPS="${FPS:-$DEF_FPS}"
 WIDTH="${WIDTH:-$DEF_W}"
 QUALITY="${QUALITY:-$DEF_Q}"
+
+# Ancho "max"/"full"/"-1" → ancho original del video
+case "${WIDTH,,}" in
+    max|full|-1|100%|original) WIDTH="$orig_w" ;;
+esac
 
 # Output path (único si ya existe)
 parent=$(dirname "$src")
