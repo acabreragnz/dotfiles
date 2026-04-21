@@ -42,8 +42,8 @@ def main() -> None:
     p.add_argument("--lossy", type=int, help="gifski --lossy (1-100, opcional)")
     p.add_argument("--pixelate-faces", action="store_true",
                    help="Aplicar mosaic sobre caras detectadas en cada frame")
-    p.add_argument("--pixelate-block", type=float, default=15.0,
-                   help="Tamaño del bloque como %% del ancho de cara (default: 15)")
+    p.add_argument("--pixelate-block", type=float, default=30.0,
+                   help="Tamaño del bloque como %% del ancho de cara (default: 30 — más alto = más pixelado)")
     args = p.parse_args()
 
     src = args.input.expanduser().resolve()
