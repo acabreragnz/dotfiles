@@ -41,7 +41,7 @@ preset=$(zenity --list \
     TRUE  "balance" "15fps / 480px / q90 — recomendado" \
     FALSE "small"   "12fps / 360px / q80 — más liviano" \
     FALSE "hq"      "20fps / 640px / q95 — calidad máxima" \
-    --width=520 --height=340)
+    --width=520 --height=490)
 
 [ -z "$preset" ] && exit 0
 
@@ -61,7 +61,7 @@ values=$(zenity --forms \
     --add-entry="Ancho (px)" \
     --add-entry="Calidad (1-100)" \
     --separator="|" \
-    --width=420 --height=380)
+    --width=420 --height=520)
 
 [ -z "$values" ] && exit 0
 
