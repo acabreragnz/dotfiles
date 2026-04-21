@@ -105,6 +105,7 @@
   - **MEMORY.md del proyecto** (memory/) — contexto específico del proyecto actual
   - **CLAUDE.md global** (~/.claude/CLAUDE.md) — instrucciones permanentes para todas las sesiones
 - NUNCA guardar directamente sin consultar al usuario
+- **Inline por defecto, archivo aparte solo si amerita:** toda memoria nueva se agrega como bullet directo en `MEMORY.md` (proyecto) o en la sección correspondiente de `CLAUDE.md` (global). Crear un archivo `.md` externo (y linkearlo desde el índice) solo cuando la entrada tiene suficiente detalle como para no caber en una o dos líneas — ej. troubleshooting con varios pasos, tablas de referencia, ejemplos de código. Una regla, un "why" y un "how to apply" cortos van inline.
 
 # Skills de Claude Code
 
