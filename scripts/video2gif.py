@@ -44,8 +44,8 @@ def main() -> None:
                    help="Aplicar mosaic sobre caras detectadas en cada frame")
     p.add_argument("--pixelate-block", type=float, default=30.0,
                    help="Tamaño del bloque como %% del ancho de cara (default: 30 — más alto = más pixelado)")
-    p.add_argument("--pixelate-threshold", type=float, default=0.1,
-                   help="Umbral de detección CenterFace (default: 0.1 — más bajo = más sensible)")
+    p.add_argument("--pixelate-threshold", type=float, default=0.2,
+                   help="Umbral de detección CenterFace (default: 0.2)")
     args = p.parse_args()
 
     src = args.input.expanduser().resolve()
