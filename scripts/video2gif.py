@@ -118,6 +118,15 @@ def main() -> None:
                     nxt = i
                 next_i[i] = nxt
 
+            # Dilatación proporcional a la distancia del gap para cubrir movimiento de la cara
+            DILATE_PER_FRAME = 8  # %
+
+            def dilate_box(box, pct, shape):
+                x1, y1, x2, y2 = box
+                dx, dy = int((x2 - x1) * pct / 100), int((y2 - y1) * pct / 100)
+                H, W = shape[:2]
+                return (max(0, x1 - dx), max(0, y1 - dy), min(W, x2 + dx), min(H, y2 + dy))
+
             filled = list(per_frame)
             gaps_filled = 0
             for i in range(n):
@@ -126,13 +135,15 @@ def main() -> None:
                 p, nx = prev_i[i], next_i[i]
                 if p == -1 and nx == -1:
                     continue
-                if p == -1:
-                    src_idx = nx
-                elif nx == -1:
-                    src_idx = p
-                else:
-                    src_idx = p if (i - p) <= (nx - i) else nx
-                filled[i] = per_frame[src_idx]
+                shape = imgs[i].shape
+                boxes = []
+                if p != -1:
+                    dp = (i - p) * DILATE_PER_FRAME
+                    boxes += [dilate_box(b, dp, shape) for b in per_frame[p]]
+                if nx != -1:
+                    dn = (nx - i) * DILATE_PER_FRAME
+                    boxes += [dilate_box(b, dn, shape) for b in per_frame[nx]]
+                filled[i] = boxes
                 gaps_filled += 1
             print(f"      Gaps rellenados por interpolación: {gaps_filled}")
 
