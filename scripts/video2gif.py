@@ -1,14 +1,15 @@
-#!/usr/bin/env python3
+#!/home/tcabrera/.local/share/pipx/venvs/deface/bin/python3
 """
 video2gif.py — convierte un tramo de video a GIF con gifski.
 
-Pipeline: ffmpeg extrae frames PNG a un tmpdir → gifski los empaqueta.
+Pipeline: ffmpeg extrae frames PNG a un tmpdir → [pixelate opcional] → gifski empaqueta.
 Preserva el mtime del archivo original en el GIF resultante.
 
 Uso:
     video2gif.py input.mp4
     video2gif.py input.mp4 --start 5 --duration 4 --fps 20 --width 600
     video2gif.py input.mp4 --start 00:01:30 --to 00:01:35 -o out.gif
+    video2gif.py input.mp4 --pixelate-faces       # mosaic sobre caras en cada frame
 """
 
 import argparse
@@ -39,6 +40,10 @@ def main() -> None:
     p.add_argument("--width", type=int, default=480, help="Ancho en px (default: 480, -1 = original)")
     p.add_argument("--quality", type=int, default=90, help="Calidad gifski 1-100 (default: 90)")
     p.add_argument("--lossy", type=int, help="gifski --lossy (1-100, opcional)")
+    p.add_argument("--pixelate-faces", action="store_true",
+                   help="Aplicar mosaic sobre caras detectadas en cada frame")
+    p.add_argument("--pixelate-block", type=float, default=15.0,
+                   help="Tamaño del bloque como %% del ancho de cara (default: 15)")
     args = p.parse_args()
 
     src = args.input.expanduser().resolve()
@@ -77,6 +82,23 @@ def main() -> None:
         if not frames:
             sys.exit("Error: ffmpeg no produjo frames (¿rango inválido?)")
         print(f"      {len(frames)} frame(s)")
+
+        if args.pixelate_faces:
+            print(f"[1.5/2] Pixelando caras en {len(frames)} frames...")
+            sys.path.insert(0, str(Path(__file__).resolve().parent))
+            import cv2  # noqa: E402
+            import pixelize  # noqa: E402
+            faces_frames = 0
+            for i, f in enumerate(frames, 1):
+                img = cv2.imread(str(f))
+                boxes, _ = pixelize.detect_faces(img)
+                if boxes:
+                    faces_frames += 1
+                    for box in boxes:
+                        img = pixelize.apply_mosaic_median(img, box, args.pixelate_block)
+                    cv2.imwrite(str(f), img)
+                if i % 10 == 0 or i == len(frames):
+                    print(f"      {i}/{len(frames)} frames ({faces_frames} con caras)")
 
         gs = ["gifski", "-o", str(out), "--fps", str(args.fps),
               "--quality", str(args.quality)]

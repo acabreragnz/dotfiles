@@ -5,6 +5,7 @@
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 SCRIPT="$HOME/scripts/video2gif.py"
+PYTHON="/home/tcabrera/.local/share/pipx/venvs/deface/bin/python3"
 VIDEO_EXTS="mp4|mov|mkv|webm|avi|m4v"
 
 mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
@@ -82,9 +83,21 @@ while [[ -f "$out" ]]; do
     n=$((n+1))
 done
 
+# ¿Pixelar caras?
+if zenity --question \
+    --title="Video → GIF — Pixelar caras" \
+    --text="¿Pixelar caras en cada frame? (mosaic)\n\nNota: agrega tiempo de proceso (detección por frame)." \
+    --ok-label="Sí, pixelar" --cancel-label="No" \
+    --width=420 --height=220; then
+    PIXELATE=1
+else
+    PIXELATE=0
+fi
+
 # Build args
 args=(--start "$START" --fps "$FPS" --width "$WIDTH" --quality "$QUALITY" -o "$out")
 [[ -n "$DURATION" ]] && args+=(--duration "$DURATION")
+[[ "$PIXELATE" == "1" ]] && args+=(--pixelate-faces)
 
 LOG=/tmp/video2gif.log
 : > "$LOG"
@@ -92,12 +105,16 @@ LOG=/tmp/video2gif.log
 (
     echo "10"
     echo "# Extrayendo frames..."
-    python3 "$SCRIPT" "$src" "${args[@]}" >>"$LOG" 2>&1 &
+    "$PYTHON" "$SCRIPT" "$src" "${args[@]}" >>"$LOG" 2>&1 &
     PID=$!
     while kill -0 "$PID" 2>/dev/null; do
         if grep -q "Empaquetando" "$LOG"; then
-            echo "70"
+            echo "85"
             echo "# Empaquetando GIF con gifski..."
+        elif grep -q "Pixelando caras" "$LOG"; then
+            last=$(grep -oE "[0-9]+/[0-9]+ frames" "$LOG" | tail -1)
+            echo "50"
+            echo "# Pixelando caras... ${last}"
         fi
         sleep 0.5
     done
