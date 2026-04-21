@@ -131,6 +131,7 @@
 # Git — Resolución de Conflictos
 
 - **Antes de resolver cualquier conflicto de rebase/merge**, revisar el PR activo del usuario (`gh api repos/.../pulls/<n>/files`) para entender qué cambios hizo. Comparar ambas versiones (HEAD = master, incoming = commit del usuario) y explicar el análisis antes de actuar. Nunca tomar una porción automáticamente sin ese paso previo.
+- **Resolución de conflictos — siempre de a un archivo a la vez con la Edit tool.** Nada de scripts bulk (sed/awk/python/loops) aunque los archivos sigan el mismo patrón. **Why:** el usuario quiere ver con sus propios ojos qué queda en cada archivo antes de stagear. **How to apply:** grep/status está bien para inspeccionar, pero cada resolución va con Edit individual mostrando el `old_string` completo del bloque `<<<<<<<...=======...>>>>>>>` y el `new_string` resultante.
 
 # Pull Requests
 
