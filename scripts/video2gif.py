@@ -44,6 +44,8 @@ def main() -> None:
                    help="Aplicar mosaic sobre caras detectadas en cada frame")
     p.add_argument("--pixelate-block", type=float, default=30.0,
                    help="Tamaño del bloque como %% del ancho de cara (default: 30 — más alto = más pixelado)")
+    p.add_argument("--pixelate-threshold", type=float, default=0.1,
+                   help="Umbral de detección CenterFace (default: 0.1 — más bajo = más sensible)")
     args = p.parse_args()
 
     src = args.input.expanduser().resolve()
@@ -84,21 +86,64 @@ def main() -> None:
         print(f"      {len(frames)} frame(s)")
 
         if args.pixelate_faces:
-            print(f"[1.5/2] Pixelando caras en {len(frames)} frames...")
             sys.path.insert(0, str(Path(__file__).resolve().parent))
             import cv2  # noqa: E402
             import pixelize  # noqa: E402
-            faces_frames = 0
-            for i, f in enumerate(frames, 1):
-                img = cv2.imread(str(f))
-                boxes, _ = pixelize.detect_faces(img)
+
+            # Paso 1: detectar en todos los frames (threshold bajo para más sensibilidad)
+            print(f"[1.5/2] Detectando caras en {len(frames)} frames (threshold={args.pixelate_threshold})...")
+            imgs = [cv2.imread(str(f)) for f in frames]
+            per_frame: list[list[tuple]] = []
+            detected_count = 0
+            for i, img in enumerate(imgs, 1):
+                boxes, _ = pixelize.detect_faces(img, threshold=args.pixelate_threshold)
+                per_frame.append(boxes)
                 if boxes:
-                    faces_frames += 1
-                    for box in boxes:
-                        img = pixelize.apply_mosaic_median(img, box, args.pixelate_block)
-                    cv2.imwrite(str(f), img)
-                if i % 10 == 0 or i == len(frames):
-                    print(f"      {i}/{len(frames)} frames ({faces_frames} con caras)")
+                    detected_count += 1
+                if i % 10 == 0 or i == len(imgs):
+                    print(f"      {i}/{len(imgs)} analizados ({detected_count} con caras)")
+
+            # Paso 2: rellenar gaps con la bbox del frame detectado más cercano
+            n = len(per_frame)
+            prev_i = [-1] * n
+            last = -1
+            for i in range(n):
+                if per_frame[i]:
+                    last = i
+                prev_i[i] = last
+            next_i = [-1] * n
+            nxt = -1
+            for i in range(n - 1, -1, -1):
+                if per_frame[i]:
+                    nxt = i
+                next_i[i] = nxt
+
+            filled = list(per_frame)
+            gaps_filled = 0
+            for i in range(n):
+                if filled[i]:
+                    continue
+                p, nx = prev_i[i], next_i[i]
+                if p == -1 and nx == -1:
+                    continue
+                if p == -1:
+                    src_idx = nx
+                elif nx == -1:
+                    src_idx = p
+                else:
+                    src_idx = p if (i - p) <= (nx - i) else nx
+                filled[i] = per_frame[src_idx]
+                gaps_filled += 1
+            print(f"      Gaps rellenados por interpolación: {gaps_filled}")
+
+            # Paso 3: aplicar mosaic sobre los frames
+            print(f"      Aplicando mosaic (block={args.pixelate_block}%)...")
+            for i, (img, boxes) in enumerate(zip(imgs, filled)):
+                if not boxes:
+                    continue
+                for box in boxes:
+                    img = pixelize.apply_mosaic_median(img, box, args.pixelate_block)
+                cv2.imwrite(str(frames[i]), img)
 
         gs = ["gifski", "-o", str(out), "--fps", str(args.fps),
               "--quality", str(args.quality)]
