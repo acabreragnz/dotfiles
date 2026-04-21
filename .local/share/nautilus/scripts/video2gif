@@ -57,7 +57,7 @@ values=$(zenity --forms \
     --title="Video → GIF" \
     --text="Config para: $(basename "$src")  (${duration_total}s)\nDejá vacío para usar el default entre paréntesis." \
     --add-entry="Inicio — seg o HH:MM:SS (0)" \
-    --add-entry="Duración — seg (hasta el final)" \
+    --add-entry="Fin — seg de duración, o HH:MM:SS (hasta el final)" \
     --add-entry="FPS (${DEF_FPS})" \
     --add-entry="Ancho px (${DEF_W})" \
     --add-entry="Calidad 1-100 (${DEF_Q})" \
@@ -67,7 +67,7 @@ values=$(zenity --forms \
 
 [ -z "$values" ] && exit 0
 
-IFS='|' read -r START DURATION FPS WIDTH QUALITY PIXELATE_CHOICE <<< "$values"
+IFS='|' read -r START END FPS WIDTH QUALITY PIXELATE_CHOICE <<< "$values"
 PIXELATE=0
 [[ "$PIXELATE_CHOICE" == "Sí (mosaic)" ]] && PIXELATE=1
 
@@ -86,9 +86,15 @@ while [[ -f "$out" ]]; do
     n=$((n+1))
 done
 
-# Build args
+# Build args — si END tiene ':' es un timestamp → --to, si no es duración en seg → --duration
 args=(--start "$START" --fps "$FPS" --width "$WIDTH" --quality "$QUALITY" -o "$out")
-[[ -n "$DURATION" ]] && args+=(--duration "$DURATION")
+if [[ -n "$END" ]]; then
+    if [[ "$END" == *:* ]]; then
+        args+=(--to "$END")
+    else
+        args+=(--duration "$END")
+    fi
+fi
 [[ "$PIXELATE" == "1" ]] && args+=(--pixelate-faces)
 
 LOG=/tmp/video2gif.log
