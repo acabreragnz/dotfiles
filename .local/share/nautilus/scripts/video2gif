@@ -1,0 +1,131 @@
+#!/usr/bin/env bash
+# Convierte un tramo de video a GIF usando gifski (via ~/scripts/video2gif.py).
+# Pide config con zenity: start, duration, fps, width, quality.
+
+export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+SCRIPT="$HOME/scripts/video2gif.py"
+VIDEO_EXTS="mp4|mov|mkv|webm|avi|m4v"
+
+mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+files=()
+for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
+
+if [ ${#files[@]} -eq 0 ]; then
+    zenity --error --text="No se recibieron archivos." --title="Video → GIF"
+    exit 1
+fi
+
+if [ ${#files[@]} -gt 1 ]; then
+    zenity --error --text="Seleccioná un único video." --title="Video → GIF"
+    exit 1
+fi
+
+src="${files[0]}"
+ext="${src##*.}"
+if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
+    zenity --error --text="Formato no soportado. Usá: ${VIDEO_EXTS//|/, }" --title="Video → GIF"
+    exit 1
+fi
+
+# Duración total del video (para mostrar en el form)
+duration_total=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$src" 2>/dev/null | awk '{printf "%.1f", $1}')
+
+# Preset de calidad
+preset=$(zenity --list \
+    --title="Video → GIF — Preset" \
+    --text="Duración del video: ${duration_total}s\n\nElegí preset inicial (después podés ajustar):" \
+    --radiolist \
+    --column="" --column="Preset" --column="Descripción" \
+    --print-column=2 \
+    TRUE  "balance" "15fps / 480px / q90 — recomendado" \
+    FALSE "small"   "12fps / 360px / q80 — más liviano" \
+    FALSE "hq"      "20fps / 640px / q95 — calidad máxima" \
+    --width=520 --height=280)
+
+[ -z "$preset" ] && exit 0
+
+case "$preset" in
+    small)   DEF_FPS=12; DEF_W=360; DEF_Q=80 ;;
+    hq)      DEF_FPS=20; DEF_W=640; DEF_Q=95 ;;
+    *)       DEF_FPS=15; DEF_W=480; DEF_Q=90 ;;
+esac
+
+# Form de configuración
+values=$(zenity --forms \
+    --title="Video → GIF" \
+    --text="Config para: $(basename "$src")  (${duration_total}s)" \
+    --add-entry="Inicio (seg o HH:MM:SS)" \
+    --add-entry="Duración (seg, vacío = hasta el final)" \
+    --add-entry="FPS" \
+    --add-entry="Ancho (px)" \
+    --add-entry="Calidad (1-100)" \
+    --separator="|" \
+    --width=420)
+
+[ -z "$values" ] && exit 0
+
+IFS='|' read -r START DURATION FPS WIDTH QUALITY <<< "$values"
+
+START="${START:-0}"
+FPS="${FPS:-$DEF_FPS}"
+WIDTH="${WIDTH:-$DEF_W}"
+QUALITY="${QUALITY:-$DEF_Q}"
+
+# Output path (único si ya existe)
+parent=$(dirname "$src")
+stem=$(basename "${src%.*}")
+out="$parent/${stem}.gif"
+n=2
+while [[ -f "$out" ]]; do
+    out="$parent/${stem}_${n}.gif"
+    n=$((n+1))
+done
+
+# Build args
+args=(--start "$START" --fps "$FPS" --width "$WIDTH" --quality "$QUALITY" -o "$out")
+[[ -n "$DURATION" ]] && args+=(--duration "$DURATION")
+
+LOG=/tmp/video2gif.log
+: > "$LOG"
+
+(
+    echo "10"
+    echo "# Extrayendo frames..."
+    python3 "$SCRIPT" "$src" "${args[@]}" >>"$LOG" 2>&1 &
+    PID=$!
+    while kill -0 "$PID" 2>/dev/null; do
+        if grep -q "Empaquetando" "$LOG"; then
+            echo "70"
+            echo "# Empaquetando GIF con gifski..."
+        fi
+        sleep 0.5
+    done
+    wait "$PID"
+    rc=$?
+    echo "100"
+    if [[ $rc -eq 0 ]]; then
+        echo "# Listo"
+    else
+        echo "# Error (ver $LOG)"
+    fi
+    exit $rc
+) | zenity --progress \
+    --title="Generando GIF..." \
+    --text="Iniciando..." \
+    --percentage=0 --auto-close --width=400
+
+EXIT=${PIPESTATUS[0]}
+
+pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+
+if [[ $EXIT -ne 0 || ! -f "$out" ]]; then
+    err=$(tail -5 "$LOG")
+    zenity --error --title="Video → GIF — falló" --text="$err" --width=500
+    exit 1
+fi
+
+size_kb=$(( $(stat -c%s "$out") / 1024 ))
+action=$(notify-send --wait --action="open=Abrir carpeta" \
+    "GIF listo" "$(basename "$out") — ${size_kb} KB" --icon=emblem-photos)
+[[ "$action" == "open" ]] && nautilus "$parent" 2>/dev/null &
