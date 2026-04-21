@@ -118,10 +118,13 @@ def main() -> None:
                     nxt = i
                 next_i[i] = nxt
 
-            # Dilatación proporcional a la distancia del gap para cubrir movimiento de la cara
-            DILATE_PER_FRAME = 8  # %
+            # Dilatación proporcional al gap, con máximo y límite de gap
+            DILATE_PER_FRAME = 3   # % por frame de distancia
+            MAX_DILATE = 25        # % máximo de dilatación
+            MAX_GAP = 5            # si el gap a un lado supera esto, ignorar ese lado
 
             def dilate_box(box, pct, shape):
+                pct = min(pct, MAX_DILATE)
                 x1, y1, x2, y2 = box
                 dx, dy = int((x2 - x1) * pct / 100), int((y2 - y1) * pct / 100)
                 H, W = shape[:2]
@@ -129,23 +132,23 @@ def main() -> None:
 
             filled = list(per_frame)
             gaps_filled = 0
+            gaps_skipped = 0
             for i in range(n):
                 if filled[i]:
                     continue
                 p, nx = prev_i[i], next_i[i]
-                if p == -1 and nx == -1:
-                    continue
                 shape = imgs[i].shape
                 boxes = []
-                if p != -1:
-                    dp = (i - p) * DILATE_PER_FRAME
-                    boxes += [dilate_box(b, dp, shape) for b in per_frame[p]]
-                if nx != -1:
-                    dn = (nx - i) * DILATE_PER_FRAME
-                    boxes += [dilate_box(b, dn, shape) for b in per_frame[nx]]
-                filled[i] = boxes
-                gaps_filled += 1
-            print(f"      Gaps rellenados por interpolación: {gaps_filled}")
+                if p != -1 and (i - p) <= MAX_GAP:
+                    boxes += [dilate_box(b, (i - p) * DILATE_PER_FRAME, shape) for b in per_frame[p]]
+                if nx != -1 and (nx - i) <= MAX_GAP:
+                    boxes += [dilate_box(b, (nx - i) * DILATE_PER_FRAME, shape) for b in per_frame[nx]]
+                if boxes:
+                    filled[i] = boxes
+                    gaps_filled += 1
+                else:
+                    gaps_skipped += 1
+            print(f"      Gaps rellenados: {gaps_filled}  ·  skipeados (>{MAX_GAP} frames): {gaps_skipped}")
 
             # Paso 3: aplicar mosaic sobre los frames
             print(f"      Aplicando mosaic (block={args.pixelate_block}%)...")
