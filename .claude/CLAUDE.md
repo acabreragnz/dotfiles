@@ -69,7 +69,7 @@
 
 - **Altura de diálogos siempre calculada por cantidad de opciones** — no hardcodear valores chicos, y NUNCA debe aparecer scroll para listas cortas. Regla (valores generosos — zenity es avaro con el espacio real):
   - `--list` / `--radiolist` / `--checklist`: `altura = 280 + (N_opciones * 70)` px
-  - `--forms`: `altura = 220 + (N_campos * 60)` px
+  - `--forms`: `altura = 180 + (N_campos * 48)` px (los forms son más compactos que las listas)
   - Mínimo absoluto 320 px; sumar ~80 si hay texto descriptivo largo arriba.
   - Si dudás entre dos valores, elegí el más alto — diálogos apretados son peor UX que uno con aire extra.
   - Regla de oro: si para 3 opciones el diálogo muestra scroll, la altura está mal.

@@ -51,17 +51,17 @@ case "$preset" in
     *)       DEF_FPS=15; DEF_W=480; DEF_Q=90 ;;
 esac
 
-# Form de configuración
+# Form de configuración (vacío = aplica el default mostrado entre paréntesis)
 values=$(zenity --forms \
     --title="Video → GIF" \
-    --text="Config para: $(basename "$src")  (${duration_total}s)" \
-    --add-entry="Inicio (seg o HH:MM:SS)" \
-    --add-entry="Duración (seg, vacío = hasta el final)" \
-    --add-entry="FPS" \
-    --add-entry="Ancho (px)" \
-    --add-entry="Calidad (1-100)" \
+    --text="Config para: $(basename "$src")  (${duration_total}s)\nDejá vacío para usar el default entre paréntesis." \
+    --add-entry="Inicio — seg o HH:MM:SS (0)" \
+    --add-entry="Duración — seg (hasta el final)" \
+    --add-entry="FPS (${DEF_FPS})" \
+    --add-entry="Ancho px (${DEF_W})" \
+    --add-entry="Calidad 1-100 (${DEF_Q})" \
     --separator="|" \
-    --width=420 --height=520)
+    --width=460 --height=420)
 
 [ -z "$values" ] && exit 0
 
