@@ -19,6 +19,19 @@
       "Bash(git log:*)",
       "Bash(git diff:*)",
       "Bash(git branch:*)",
+      "Bash(git show:*)",
+      "Bash(git blame:*)",
+      "Bash(git stash list)",
+      "Bash(git stash list:*)",
+      "Bash(git worktree list)",
+      "Bash(git worktree list:*)",
+      "Bash(git remote -v)",
+      "Bash(git remote:*)",
+      "Bash(git reflog:*)",
+      "Bash(git describe:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git ls-files:*)",
+      "Bash(git cat-file:*)",
       "Bash(ls:*)",
       "Bash(pwd)",
       "Bash(whoami)",
@@ -63,7 +76,16 @@
       "Bash(docker-compose ps:*)",
       "Bash(docker-compose logs:*)",
       "Bash(docker-compose config:*)",
+      "Bash(docker compose ps:*)",
+      "Bash(docker compose logs:*)",
+      "Bash(docker compose config:*)",
+      "Bash(docker compose top:*)",
+      "Bash(docker context ls)",
+      "Bash(docker context show)",
       "Bash(gh auth status)",
+      "Bash(gh auth status:*)",
+      "Bash(gh pr status)",
+      "Bash(gh pr status:*)",
       "Bash(gh repo view:*)",
       "Bash(gh repo list:*)",
       "Bash(gh issue list:*)",
@@ -132,7 +154,8 @@
       "Skill",
       "WebSearch",
       "WebFetch",
-      "mcp__plugin_figma_figma__*"
+      "mcp__plugin_figma_figma__*",
+      "Bash(curl:*)"
     ],
     "deny": [
       "Read(**/.env*)",
@@ -176,8 +199,6 @@
       "Bash(gh label delete:*)",
       "Bash(gh gist delete:*)",
       "Bash(gh run delete:*)",
-      "Bash(curl http://*)",
-      "Bash(wget http://*)",
       "Bash(ssh:*)",
       "Bash(scp:*)",
       "Bash(rsync:*)",
@@ -219,7 +240,6 @@
       "Bash(pnpm add:*)",
       "Bash(pip install:*)",
       "Bash(cargo install:*)",
-      "Bash(curl:*)",
       "Bash(wget:*)",
       "Bash(docker run:*)",
       "Bash(docker start:*)",
@@ -267,12 +287,11 @@
       "mcp__figma__send_code_connect_mappings",
       "mcp__figma__generate_figma_design"
     ],
-    "defaultMode": "bypassPermissions",
+    "defaultMode": "auto",
     "additionalDirectories": [
       "/home/tcabrera/dev/rabbet/lift/.claude/worktrees"
     ]
   },
-  "model": "sonnet",
   "hooks": {
     "PreToolUse": [
       {
@@ -363,9 +382,10 @@
       }
     }
   },
-  "effortLevel": "medium",
+  "effortLevel": "xhigh",
   "showClearContextOnPlanAccept": true,
   "autoUpdatesChannel": "latest",
   "skipDangerousModePermissionPrompt": true,
+  "skipAutoPermissionPrompt": true,
   "voiceEnabled": true
 }
