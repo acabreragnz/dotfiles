@@ -10,13 +10,13 @@ files=()
 for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
 
 if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
-    zenity --error --text="No se recibieron archivos." --title="Rotar video"
+    zenity --error --text="No files received." --title="Rotate video"
     exit 1
 fi
 
 ext="${files[0]##*.}"
 if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
-    zenity --error --text="Este script es solo para videos." --title="Rotar video"
+    zenity --error --text="This script only handles videos." --title="Rotate video"
     exit 1
 fi
 
@@ -28,20 +28,20 @@ get_unique_dir() {
     echo "$dir"
 }
 
-angulo=$(zenity --list \
-    --title="Rotar video" \
-    --text="Elegí la rotación para ${#files[@]} video(s):" \
+angle=$(zenity --list \
+    --title="Rotate video" \
+    --text="Pick rotation for ${#files[@]} video(s):" \
     --radiolist \
-    --column="" --column="Ángulo" --column="Descripción" \
+    --column="" --column="Angle" --column="Description" \
     --print-column=2 \
-    TRUE  "180"  "180° — grabado al revés (más común)" \
-    FALSE "90"   "90° — sentido horario" \
-    FALSE "270"  "270° — sentido antihorario" \
+    TRUE  "180"  "180° — recorded upside down (most common)" \
+    FALSE "90"   "90° — clockwise" \
+    FALSE "270"  "270° — counter-clockwise" \
     --width=480 --height=300)
 
-[ -z "$angulo" ] && exit 0
+[ -z "$angle" ] && exit 0
 
-case "$angulo" in
+case "$angle" in
     90)  vf="transpose=1" ;;
     180) vf="hflip,vflip" ;;
     270) vf="transpose=2" ;;
@@ -56,15 +56,15 @@ for file in "${files[@]}"; do
     dir=$(dirname "$file")
     stem=$(basename "${file%.*}")
     if [[ $single_mode -eq 1 ]]; then
-        out="$dir/${stem}_rotado_${angulo}.mp4"
+        out="$dir/${stem}_rotated_${angle}.mp4"
         n=2
-        while [[ -f "$out" ]]; do out="$dir/${stem}_rotado_${angulo}_${n}.mp4"; n=$((n+1)); done
+        while [[ -f "$out" ]]; do out="$dir/${stem}_rotated_${angle}_${n}.mp4"; n=$((n+1)); done
         output_dirs+=("$dir")
         output_files+=("$out")
     else
-        outdir=$(get_unique_dir "$dir/${stem}_rotado_${angulo}")
+        outdir=$(get_unique_dir "$dir/${stem}_rotated_${angle}")
         output_dirs+=("$outdir")
-        output_files+=("$outdir/${stem}_rotado_${angulo}.mp4")
+        output_files+=("$outdir/${stem}_rotated_${angle}.mp4")
     fi
 done
 
@@ -100,10 +100,10 @@ PID_FILE=$(mktemp)
         touch -r "$file" "$out" 2>/dev/null
     done
     echo "100"
-    echo "# Listo"
+    echo "# Done"
 ) | zenity --progress \
-    --title="Rotando video..." \
-    --text="Iniciando..." \
+    --title="Rotating video..." \
+    --text="Starting..." \
     --percentage=0 --auto-close --width=380
 
 EXIT_CODE=${PIPESTATUS[1]}
@@ -121,13 +121,13 @@ for f in "${output_files[@]}"; do [[ ! -f "$f" ]] && failed=$((failed + 1)); don
 ok=$(( ${#files[@]} - failed ))
 
 if [[ $failed -gt 0 && $ok -eq 0 ]]; then
-    notify-send "Rotar video — error" "No se pudo rotar ningún video" --icon=dialog-error
+    notify-send "Rotate video — error" "Could not rotate any video" --icon=dialog-error
 elif [[ $failed -gt 0 ]]; then
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Video rotado (con errores)" "$ok rotado(s), $failed fallido(s)" --icon=emblem-videos)
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Video rotated (with errors)" "$ok rotated, $failed failed" --icon=emblem-videos)
     [[ "$action" == "open" ]] && nautilus "$(dirname "${output_files[0]}")" 2>/dev/null &
 else
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Video rotado" "$ok video(s) — ${angulo}°" --icon=emblem-videos)
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Video rotated" "$ok video(s) — ${angle}°" --icon=emblem-videos)
     [[ "$action" == "open" ]] && nautilus "$(dirname "${output_files[0]}")" 2>/dev/null &
 fi

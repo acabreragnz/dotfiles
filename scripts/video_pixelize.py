@@ -147,7 +147,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description="Pixela caras en un video (mosaic sobre frames).")
     p.add_argument("input", type=Path, help="Video de entrada")
     p.add_argument("-o", "--output", type=Path,
-                   help="Video de salida (default: <stem>_pixelado.<ext>)")
+                   help="Output video (default: <stem>_pixelated.<ext>)")
     p.add_argument("--start", help="Inicio (seg o HH:MM:SS)")
     g = p.add_mutually_exclusive_group()
     g.add_argument("--to", help="Fin (seg o HH:MM:SS)")
@@ -165,11 +165,11 @@ def main() -> None:
 
     for tool in ("ffmpeg", "ffprobe"):
         if not shutil.which(tool):
-            sys.exit(f"Error: falta '{tool}' en PATH")
+            sys.exit(f"Error: '{tool}' not found in PATH")
 
     src = args.input.expanduser().resolve()
     if not src.is_file():
-        sys.exit(f"Error: no existe {src}")
+        sys.exit(f"Error: file does not exist: {src}")
 
     codec = probe_codec(src)
     vcodec_args, pix_fmt_args, default_ext = encode_flags(codec)
@@ -178,10 +178,10 @@ def main() -> None:
         out = args.output.expanduser().resolve()
     else:
         # Conservar la extensión original si es compatible; si no, usar la sugerida
-        out = unique_path(src.with_name(f"{src.stem}_pixelado{src.suffix}"))
+        out = unique_path(src.with_name(f"{src.stem}_pixelated{src.suffix}"))
     out.parent.mkdir(parents=True, exist_ok=True)
     if out == src:
-        sys.exit("Error: el output no puede sobreescribir el input")
+        sys.exit("Error: output cannot overwrite the input")
 
     src_mtime = effective_mtime(src)
 
@@ -204,12 +204,12 @@ def main() -> None:
             ff_extract += ["-t", str(args.duration)]
         ff_extract += [str(frames_glob)]
 
-        print(f"[1/3] Extrayendo frames → {tmp_path}")
+        print(f"[1/3] Extracting frames → {tmp_path}")
         run(ff_extract)
 
         frames = sorted(tmp_path.glob("frame_*.png"))
         if not frames:
-            sys.exit("Error: ffmpeg no produjo frames (¿rango inválido?)")
+            sys.exit("Error: ffmpeg produced no frames (invalid range?)")
         print(f"      {len(frames)} frame(s)")
 
         # Dims del primer frame
@@ -217,7 +217,7 @@ def main() -> None:
         H, W = first_img.shape[:2]
 
         # [2/3] Detectar caras en todos los frames (sin cargarlos todos en RAM)
-        print(f"[2/3] Detectando caras con {args.model} (threshold={args.threshold})...")
+        print(f"[2/3] Detecting faces with {args.model} (threshold={args.threshold})...")
         per_frame: list[list[tuple]] = []
         detected = 0
         for i, f in enumerate(frames, 1):
@@ -227,17 +227,17 @@ def main() -> None:
             if boxes:
                 detected += 1
             if i % 25 == 0 or i == len(frames):
-                print(f"      {i}/{len(frames)} analizados ({detected} con caras)")
+                print(f"      {i}/{len(frames)} analyzed ({detected} with faces)")
 
         if args.fill_gaps:
             filled, gaps_ok, gaps_skip = _fill_gaps(per_frame, (H, W))
-            print(f"      Gaps rellenados: {gaps_ok}  ·  skipeados (>{MAX_GAP} frames): {gaps_skip}")
+            print(f"      Gaps filled: {gaps_ok}  ·  skipped (>{MAX_GAP} frames): {gaps_skip}")
         else:
             filled = per_frame
-            print(f"      Gap-fill desactivado (--no-fill-gaps)")
+            print(f"      Gap-fill disabled (--no-fill-gaps)")
 
         # [3/3] Aplicar mosaic sobre los frames y re-encodear
-        print(f"      Aplicando mosaic (block={args.block_pct}%)...")
+        print(f"      Applying mosaic (block={args.block_pct}%)...")
         for i, (f, boxes) in enumerate(zip(frames, filled), 1):
             if not boxes:
                 continue
@@ -261,7 +261,7 @@ def main() -> None:
         except ValueError:
             fps = 25.0
 
-        print(f"[3/3] Re-encodeando → {out.name} ({codec} → {vcodec_args[1]})")
+        print(f"[3/3] Re-encoding → {out.name} ({codec} → {vcodec_args[1]})")
         ff_enc = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
                   "-framerate", f"{fps:.6f}", "-i", str(frames_glob)]
         # Segundo input: el source (para copiar el audio del rango correspondiente)

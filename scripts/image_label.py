@@ -37,10 +37,10 @@ def main():
     for path_str in args.images:
         src = Path(path_str).resolve()
         if not src.exists():
-            print(f"SKIP: no existe '{src}'", file=sys.stderr)
+            print(f"SKIP: does not exist '{src}'", file=sys.stderr)
             continue
         if src.suffix.lower() not in IMAGE_EXTS:
-            print(f"SKIP: no es imagen '{src.name}'", file=sys.stderr)
+            print(f"SKIP: not an image '{src.name}'", file=sys.stderr)
             continue
 
         mtime = effective_mtime(src)
@@ -58,7 +58,7 @@ def main():
         os.utime(dst, (mtime, mtime))
         print(f"  → {dst.name}")
 
-    print("Listo.")
+    print("Done.")
 
 
 if __name__ == "__main__":

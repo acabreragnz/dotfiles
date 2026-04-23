@@ -121,11 +121,11 @@ def main() -> None:
 
     src = args.input.expanduser().resolve()
     if not src.is_file():
-        sys.exit(f"Error: no existe {src}")
+        sys.exit(f"Error: file does not exist: {src}")
 
     for tool in ("ffmpeg", "gifski"):
         if not shutil.which(tool):
-            sys.exit(f"Error: falta '{tool}' en PATH")
+            sys.exit(f"Error: '{tool}' not found in PATH")
 
     if args.output:
         out = args.output.expanduser().resolve()
@@ -155,12 +155,12 @@ def main() -> None:
             vf.append(f"scale={args.width}:-2:flags=lanczos")
         ff += ["-vf", ",".join(vf), str(frames_glob)]
 
-        print(f"[1/2] Extrayendo frames → {tmp_path}")
+        print(f"[1/2] Extracting frames → {tmp_path}")
         run(ff)
 
         frames = sorted(tmp_path.glob("frame_*.png"))
         if not frames:
-            sys.exit("Error: ffmpeg no produjo frames (¿rango inválido?)")
+            sys.exit("Error: ffmpeg produced no frames (invalid range?)")
         print(f"      {len(frames)} frame(s)")
 
         if args.pixelate_faces:
@@ -169,7 +169,7 @@ def main() -> None:
             import pixelize  # noqa: E402
 
             # Paso 1: detectar en todos los frames (threshold bajo para más sensibilidad)
-            print(f"[1.5/2] Detectando caras con {args.pixelate_model} en {len(frames)} frames (threshold={args.pixelate_threshold})...")
+            print(f"[1.5/2] Detecting faces with {args.pixelate_model} in {len(frames)} frames (threshold={args.pixelate_threshold})...")
             imgs = [cv2.imread(str(f)) for f in frames]
             per_frame: list[list[tuple]] = []
             detected_count = 0
@@ -179,7 +179,7 @@ def main() -> None:
                 if boxes:
                     detected_count += 1
                 if i % 10 == 0 or i == len(imgs):
-                    print(f"      {i}/{len(imgs)} analizados ({detected_count} con caras)")
+                    print(f"      {i}/{len(imgs)} analyzed ({detected_count} with faces)")
 
             # Paso 2: rellenar gaps con la bbox del frame detectado más cercano
             if args.pixelate_fill_gaps:
@@ -227,13 +227,13 @@ def main() -> None:
                         gaps_filled += 1
                     else:
                         gaps_skipped += 1
-                print(f"      Gaps rellenados: {gaps_filled}  ·  skipeados (>{MAX_GAP} frames): {gaps_skipped}")
+                print(f"      Gaps filled: {gaps_filled}  ·  skipped (>{MAX_GAP} frames): {gaps_skipped}")
             else:
                 filled = per_frame
-                print(f"      Gap-fill desactivado (--no-pixelate-fill-gaps)")
+                print(f"      Gap-fill disabled (--no-pixelate-fill-gaps)")
 
             # Paso 3: aplicar mosaic sobre los frames
-            print(f"      Aplicando mosaic (block={args.pixelate_block}%)...")
+            print(f"      Applying mosaic (block={args.pixelate_block}%)...")
             for i, (img, boxes) in enumerate(zip(imgs, filled)):
                 if not boxes:
                     continue
@@ -247,7 +247,7 @@ def main() -> None:
             gs += ["--lossy-quality", str(args.lossy)]
         gs += [str(f) for f in frames]
 
-        print(f"[2/2] Empaquetando GIF → {out.name}")
+        print(f"[2/2] Packaging GIF → {out.name}")
         run(gs)
 
     os.utime(out, (src_mtime, src_mtime))

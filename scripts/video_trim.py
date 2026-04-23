@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
-video_cut.py — corta un tramo de video sin pérdida (stream copy) o con re-encode preciso.
+video_trim.py — corta un tramo de video sin pérdida (stream copy) o con re-encode preciso.
 
 Por defecto usa `-c copy` (lossless, pero para H.264/HEVC/VP9 el inicio se ajusta
 al keyframe más cercano antes del --start). Con --precise re-encodea para corte
-exacto al frame, eligiendo códec y calidad según el original (similar a rotar-video).
+exacto al frame, eligiendo códec y calidad según el original (similar a rotate-video).
 
 Preserva el mtime del archivo original en el archivo resultante.
 
 Uso:
-    video_cut.py input.mp4 --start 1:39 --to 6:30
-    video_cut.py input.avi --start 5 --duration 30 -o salida.avi
-    video_cut.py input.mp4 --start 00:00:10 --to 00:00:45 --precise
+    video_trim.py input.mp4 --start 1:39 --to 6:30
+    video_trim.py input.avi --start 5 --duration 30 -o output.avi
+    video_trim.py input.mp4 --start 00:00:10 --to 00:00:45 --precise
 """
 
 from __future__ import annotations
@@ -36,7 +36,7 @@ def parse_time(s: str) -> float:
             return parts[0] * 60 + parts[1]
         if len(parts) == 3:
             return parts[0] * 3600 + parts[1] * 60 + parts[2]
-        raise ValueError(f"formato inválido: {s}")
+        raise ValueError(f"invalid format: {s}")
     return float(s)
 
 
@@ -116,25 +116,25 @@ def default_output_name(src: Path, start_s: float, end_s: float | None) -> Path:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Corta un tramo de video (stream copy por defecto).")
-    p.add_argument("input", type=Path, help="Video de entrada")
+    p = argparse.ArgumentParser(description="Trim a video range (stream copy by default).")
+    p.add_argument("input", type=Path, help="Input video")
     p.add_argument("-o", "--output", type=Path,
-                   help="Video de salida (default: <stem>_cut_<start>-<end>.<ext> al lado)")
+                   help="Output video (default: <stem>_cut_<start>-<end>.<ext> next to source)")
     p.add_argument("--start", default="0",
-                   help="Tiempo de inicio (seg o HH:MM:SS). Default: 0")
+                   help="Start time (seconds or HH:MM:SS). Default: 0")
     g = p.add_mutually_exclusive_group()
-    g.add_argument("--to", help="Tiempo final (seg o HH:MM:SS)")
-    g.add_argument("--duration", help="Duración del tramo (seg o HH:MM:SS)")
+    g.add_argument("--to", help="End time (seconds or HH:MM:SS)")
+    g.add_argument("--duration", help="Range duration (seconds or HH:MM:SS)")
     p.add_argument("--precise", action="store_true",
-                   help="Re-encode para corte exacto al frame (no lossless)")
+                   help="Re-encode for frame-accurate cut (not lossless)")
     args = p.parse_args()
 
     if not shutil.which("ffmpeg"):
-        sys.exit("Error: falta 'ffmpeg' en PATH")
+        sys.exit("Error: 'ffmpeg' not found in PATH")
 
     src = args.input.expanduser().resolve()
     if not src.is_file():
-        sys.exit(f"Error: no existe {src}")
+        sys.exit(f"Error: file does not exist: {src}")
 
     try:
         start_s = parse_time(args.start)
@@ -182,7 +182,7 @@ def main() -> None:
 
     ff += [str(out)]
 
-    print(f"[1/1] Cortando → {out.name}  ({'precise' if args.precise else 'lossless'})")
+    print(f"[1/1] Trimming → {out.name}  ({'precise' if args.precise else 'lossless'})")
     run(ff)
 
     os.utime(out, (mtime, mtime))

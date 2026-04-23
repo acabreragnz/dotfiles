@@ -11,18 +11,18 @@ files=()
 for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
 
 if [ ${#files[@]} -eq 0 ]; then
-    zenity --error --text="No se recibieron archivos." --title="Crop"
+    zenity --error --text="No files received." --title="Crop"
     exit 1
 fi
 if [ ${#files[@]} -gt 1 ]; then
-    zenity --error --text="Seleccioná un único archivo." --title="Crop"
+    zenity --error --text="Select a single file." --title="Crop"
     exit 1
 fi
 
 src="${files[0]}"
 ext="${src##*.}"
 if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
-    zenity --error --text="Formato no soportado. Usá: ${VIDEO_EXTS//|/, }" --title="Crop"
+    zenity --error --text="Unsupported format. Use: ${VIDEO_EXTS//|/, }" --title="Crop"
     exit 1
 fi
 
@@ -32,11 +32,11 @@ orig_h=$(echo "$dims" | cut -dx -f2)
 
 values=$(zenity --forms \
     --title="Crop" \
-    --text="Archivo: $(basename "$src")\nOriginal: ${orig_w}×${orig_h} px\n\nCada borde acepta px o % (ej: 40 o 10%). Vacío = 0.\n" \
-    --add-entry="Izquierda (0)" \
-    --add-entry="Derecha (0)" \
-    --add-entry="Arriba (0)" \
-    --add-entry="Abajo (0)" \
+    --text="File: $(basename "$src")\nOriginal: ${orig_w}×${orig_h} px\n\nEach edge accepts px or % (e.g. 40 or 10%). Empty = 0.\n" \
+    --add-entry="Left (0)" \
+    --add-entry="Right (0)" \
+    --add-entry="Top (0)" \
+    --add-entry="Bottom (0)" \
     --separator="|" \
     --width=460 --height=420)
 
@@ -46,7 +46,7 @@ IFS='|' read -r LEFT RIGHT TOP BOTTOM <<< "$values"
 LEFT="${LEFT:-0}"; RIGHT="${RIGHT:-0}"; TOP="${TOP:-0}"; BOTTOM="${BOTTOM:-0}"
 
 if [[ "$LEFT" == "0" && "$RIGHT" == "0" && "$TOP" == "0" && "$BOTTOM" == "0" ]]; then
-    zenity --error --text="Especificá al menos un borde." --title="Crop"
+    zenity --error --text="Specify at least one edge." --title="Crop"
     exit 1
 fi
 
@@ -57,7 +57,7 @@ LOG=/tmp/crop.log
 
 (
     echo "10"
-    echo "# Recortando..."
+    echo "# Cropping..."
     # El motor nombra el output con las dims finales (ej: _cropped_1536x1080)
     python3 "$SCRIPT" "$src" --left "$LEFT" --right "$RIGHT" --top "$TOP" --bottom "$BOTTOM" >>"$LOG" 2>&1 &
     PID=$!
@@ -68,11 +68,11 @@ LOG=/tmp/crop.log
     wait "$PID"
     rc=$?
     echo "100"
-    [[ $rc -eq 0 ]] && echo "# Listo" || echo "# Error (ver $LOG)"
+    [[ $rc -eq 0 ]] && echo "# Done" || echo "# Error (see $LOG)"
     exit $rc
 ) | zenity --progress \
     --title="Crop..." \
-    --text="Procesando..." \
+    --text="Processing..." \
     --percentage=0 --auto-close --width=400
 
 EXIT=${PIPESTATUS[0]}
@@ -84,12 +84,12 @@ out=$(grep -oE '^✓ /[^ ]+' "$LOG" | tail -1 | sed 's/^✓ //')
 
 if [[ $EXIT -ne 0 || -z "$out" || ! -f "$out" ]]; then
     err=$(tail -5 "$LOG")
-    zenity --error --title="Crop — falló" --text="$err" --width=500
+    zenity --error --title="Crop — failed" --text="$err" --width=500
     exit 1
 fi
 
 size_kb=$(( $(stat -c%s "$out") / 1024 ))
 out_dims=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$out" 2>/dev/null)
-action=$(notify-send --wait --action="open=Abrir carpeta" \
-    "Crop listo" "$(basename "$out") — ${out_dims} · ${size_kb} KB" --icon=edit-cut)
+action=$(notify-send --wait --action="open=Open folder" \
+    "Crop done" "$(basename "$out") — ${out_dims} · ${size_kb} KB" --icon=edit-cut)
 [[ "$action" == "open" ]] && nautilus "$parent" 2>/dev/null &

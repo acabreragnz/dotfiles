@@ -11,8 +11,10 @@ El audio original se preserva y el mtime se restaura.
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from datetime import datetime
 
@@ -48,22 +50,64 @@ def get_video_codec_info(video_path: str) -> tuple[str, int]:
     return codec, bit_rate
 
 
+def _run_gif_pipeline(src: Path, dst: Path, fps: float, rotation: int,
+                      date_str: str, total_frames: int, position: str,
+                      src_mtime: float) -> None:
+    """Pipeline para GIF: frames → PNG con timestamp → gifski."""
+    print(f"GIF   : {src.name}")
+    print(f"Date  : {date_str} | FPS: {fps} | Duration ~ {total_frames} frame(s)")
+    print(f"Output: {dst.name}")
+    print()
+
+    with tempfile.TemporaryDirectory(prefix="video_label_gif_") as tmp:
+        tmp_path = Path(tmp)
+        gen = stream_frames(str(src), fps, rotation, max_width=0)
+        count = 0
+        with tqdm(total=total_frames, desc="Procesando", unit="frame") as pbar:
+            for _, frame in gen:
+                img = _draw_date(Image.fromarray(frame), date_str, position)
+                count += 1
+                img.save(tmp_path / f"frame_{count:05d}.png")
+                pbar.update(1)
+
+        frames = sorted(tmp_path.glob("frame_*.png"))
+        if not frames:
+            print("Error: no frames generated", file=sys.stderr)
+            sys.exit(1)
+
+        gs = ["gifski", "-o", str(dst), "--fps", str(int(round(fps))),
+              "--quality", "90", *[str(f) for f in frames]]
+        r = subprocess.run(gs, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if r.returncode != 0:
+            print(f"gifski error:\n{r.stderr}", file=sys.stderr)
+            sys.exit(r.returncode)
+
+    os.utime(dst, (src_mtime, src_mtime))
+    print(f"\nSaved: {dst}")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Quema la fecha del mtime en un video")
-    parser.add_argument("video", help="Ruta al video")
-    parser.add_argument("--output", "-o", default=None, help="Archivo de salida (default: <nombre>_labeled.mp4)")
+    parser = argparse.ArgumentParser(description="Burn the mtime date into a video")
+    parser.add_argument("video", help="Path to the video")
+    parser.add_argument("--output", "-o", default=None, help="Output file (default: <name>_labeled.mp4)")
     parser.add_argument("--rotate", type=int, choices=[0, 90, 180, 270], default=None,
-                        help="Forzar rotación en grados (útil para videos grabados al revés sin metadata)")
+                        help="Force rotation in degrees (useful for videos recorded upside down without metadata)")
     parser.add_argument("--position", default="right",
-                        help="Posición(es) del timestamp: right, left, center, both, o combinación separada por coma (ej: left,center,right). Default: right")
+                        help="Position(s) of the timestamp: right, left, center, both, or a comma-separated combination (e.g. left,center,right). Default: right")
     args = parser.parse_args()
 
     src = Path(args.video).resolve()
     if not src.exists():
-        print(f"Error: no se encontró '{src}'", file=sys.stderr)
+        print(f"Error: not found '{src}'", file=sys.stderr)
         sys.exit(1)
 
-    dst = Path(args.output).resolve() if args.output else src.parent / f"{src.stem}_labeled.mp4"
+    is_gif = src.suffix.lower() == ".gif"
+    default_ext = ".gif" if is_gif else ".mp4"
+    dst = Path(args.output).resolve() if args.output else src.parent / f"{src.stem}_labeled{default_ext}"
+
+    if is_gif and not shutil.which("gifski"):
+        print("Error: 'gifski' not found in PATH (required for GIF)", file=sys.stderr)
+        sys.exit(1)
 
     src_mtime = effective_mtime(src)
     date_str = datetime.fromtimestamp(src_mtime).strftime("%d/%m/%Y")
@@ -75,15 +119,19 @@ def main():
     if args.rotate is not None:
         rotation = args.rotate
 
+    if is_gif:
+        _run_gif_pipeline(src, dst, fps, rotation, date_str, total_frames, args.position, src_mtime)
+        return
+
     encoder_map = {"h264": "libx264", "hevc": "libx265", "vp9": "libvpx-vp9", "mjpeg": "mjpeg"}
     encoder = encoder_map.get(codec, "libx264")
 
     print(f"Video : {src.name}")
-    print(f"Fecha : {date_str} | FPS: {fps} | Duración: {duration:.1f}s (~{total_frames} frames)")
+    print(f"Date  : {date_str} | FPS: {fps} | Duration: {duration:.1f}s (~{total_frames} frames)")
     print(f"Codec : {codec} → {encoder} @ {bit_rate // 1000}kbps")
     if rotation:
-        print(f"Rot.  : {rotation}° corregida")
-    print(f"Salida: {dst.name}")
+        print(f"Rot.  : {rotation}° corrected")
+    print(f"Output: {dst.name}")
     print()
 
     # Primer frame para obtener dimensiones reales post-rotación
@@ -127,18 +175,18 @@ def main():
         enc_proc.stdin.close()
     except BrokenPipeError:
         ffmpeg_log.flush()
-        print(f"\nError: ffmpeg terminó inesperadamente. Ver /tmp/video_label_ffmpeg.log", file=sys.stderr)
+        print(f"\nError: ffmpeg exited unexpectedly. See /tmp/video_label_ffmpeg.log", file=sys.stderr)
         sys.exit(1)
     finally:
         ffmpeg_log.close()
 
     ret = enc_proc.wait()
     if ret != 0:
-        print(f"\nError: ffmpeg salió con código {ret}. Ver /tmp/video_label_ffmpeg.log", file=sys.stderr)
+        print(f"\nError: ffmpeg exited with code {ret}. See /tmp/video_label_ffmpeg.log", file=sys.stderr)
         sys.exit(1)
 
     os.utime(dst, (src_mtime, src_mtime))
-    print(f"\nGuardado: {dst}")
+    print(f"\nSaved: {dst}")
 
 
 if __name__ == "__main__":

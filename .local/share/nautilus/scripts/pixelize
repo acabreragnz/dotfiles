@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Anonimiza caras en imágenes seleccionadas en Nautilus.
-# Acepta archivos individuales o un directorio.
+# Anonimiza caras en imágenes o video seleccionados en Nautilus.
+# Acepta archivos individuales, un directorio de imágenes, o un video único.
 
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
@@ -16,7 +16,7 @@ files=()
 for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
 
 if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
-    zenity --error --text="No se recibieron archivos." --title="Pixelize"
+    zenity --error --text="No files received." --title="Pixelize"
     exit 1
 fi
 
@@ -28,13 +28,13 @@ get_unique_dir() {
     echo "$dir"
 }
 
-# ── Modo directorio ───────────────────────────────────────────────────────────
+# ── Directory mode ────────────────────────────────────────────────────────────
 if [ -d "${files[0]}" ]; then
     dir="${files[0]}"
     mapfile -t imgs < <(find "$dir" -maxdepth 1 -type f | grep -iE "\.(${IMAGE_EXTS})$" | sort)
 
     if [ ${#imgs[@]} -eq 0 ]; then
-        zenity --error --text="No se encontraron imágenes en el directorio." --title="Pixelize"
+        zenity --error --text="No images found in the directory." --title="Pixelize"
         exit 1
     fi
 
@@ -56,10 +56,10 @@ if [ -d "${files[0]}" ]; then
             wait
         done
         echo "100"
-        echo "# Listo"
+        echo "# Done"
     ) | zenity --progress \
-        --title="Pixelizando directorio..." \
-        --text="Iniciando..." \
+        --title="Pixelizing directory..." \
+        --text="Starting..." \
         --percentage=0 --auto-close --width=380
 
     EXIT_CODE=${PIPESTATUS[1]}
@@ -71,13 +71,13 @@ if [ -d "${files[0]}" ]; then
     rm -f "$PID_FILE"
 
     pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Pixelize listo" "${#imgs[@]} imagen(es) → $(basename "$outdir")" --icon=emblem-photos)
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Pixelize done" "${#imgs[@]} image(s) → $(basename "$outdir")" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
     exit 0
 fi
 
-# ── Modo video (un único archivo de video) ────────────────────────────────────
+# ── Video mode (single video file) ────────────────────────────────────────────
 ext="${files[0]##*.}"
 if [ ${#files[@]} -eq 1 ] && echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
     src="${files[0]}"
@@ -86,13 +86,13 @@ if [ ${#files[@]} -eq 1 ] && echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
 
     values=$(zenity --forms \
         --title="Pixelize video" \
-        --text="Archivo: $(basename "$src")\nDuración: ${duration_total}s (${hms})\n\nRango opcional. Inicio/Fin aceptan seg o HH:MM:SS; en 'Fin' sin ':' se interpreta como duración en seg.\n" \
-        --add-entry="Inicio (vacío = 0)" \
-        --add-entry="Fin — HH:MM:SS (timestamp) o seg (duración)" \
-        --add-combo="Modelo" --combo-values="SCRFD (balance · default)|RetinaFace-R34 (máx. precisión · ~3× más lento)|CenterFace (más rápido)" \
-        --add-combo="Rellenar gaps" --combo-values="Sí|No" \
-        --add-entry="Block %% del ancho de cara (30)" \
-        --add-entry="Threshold detección (0.2)" \
+        --text="File: $(basename "$src")\nDuration: ${duration_total}s (${hms})\n\nRange optional. Start/End accept seconds or HH:MM:SS; in 'End' without ':' it's interpreted as duration in seconds.\n" \
+        --add-entry="Start (empty = 0)" \
+        --add-entry="End — HH:MM:SS (timestamp) or seconds (duration)" \
+        --add-combo="Model" --combo-values="SCRFD (balance · default)|RetinaFace-R34 (max precision · ~3× slower)|CenterFace (faster)" \
+        --add-combo="Fill gaps" --combo-values="Yes|No" \
+        --add-entry="Block %% of face width (30)" \
+        --add-entry="Detection threshold (0.2)" \
         --separator="|" \
         --width=560 --height=516)
 
@@ -109,8 +109,8 @@ if [ ${#files[@]} -eq 1 ] && echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
         fi
     fi
     case "$V_MODEL" in
-        "CenterFace (más rápido)") args+=(--model centerface) ;;
-        "RetinaFace-R34 (máx. precisión · ~3× más lento)") args+=(--model retinaface) ;;
+        "CenterFace (faster)") args+=(--model centerface) ;;
+        "RetinaFace-R34 (max precision · ~3× slower)") args+=(--model retinaface) ;;
         *) args+=(--model scrfd) ;;
     esac
     [[ "$V_FILL" == "No" ]] && args+=(--no-fill-gaps)
@@ -123,28 +123,28 @@ if [ ${#files[@]} -eq 1 ] && echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
 
     (
         echo "5"
-        echo "# Extrayendo frames..."
+        echo "# Extracting frames..."
         "$PYTHON" "$VIDEO_SCRIPT" "$src" "${args[@]}" >>"$LOG" 2>&1 &
         PID=$!
         while kill -0 "$PID" 2>/dev/null; do
-            if grep -q "Re-encodeando" "$LOG"; then
-                echo "85"; echo "# Re-encodeando video..."
-            elif grep -q "Aplicando mosaic" "$LOG"; then
-                echo "65"; echo "# Aplicando mosaic..."
-            elif grep -q "Detectando caras" "$LOG"; then
-                last=$(grep -oE "[0-9]+/[0-9]+ analizados" "$LOG" | tail -1)
-                echo "30"; echo "# Detectando caras ${last}"
+            if grep -q "Re-encoding" "$LOG"; then
+                echo "85"; echo "# Re-encoding video..."
+            elif grep -q "Applying mosaic" "$LOG"; then
+                echo "65"; echo "# Applying mosaic..."
+            elif grep -q "Detecting faces" "$LOG"; then
+                last=$(grep -oE "[0-9]+/[0-9]+ analyzed" "$LOG" | tail -1)
+                echo "30"; echo "# Detecting faces ${last}"
             fi
             sleep 0.5
         done
         wait "$PID"
         rc=$?
         echo "100"
-        [[ $rc -eq 0 ]] && echo "# Listo" || echo "# Error (ver $LOG)"
+        [[ $rc -eq 0 ]] && echo "# Done" || echo "# Error (see $LOG)"
         exit $rc
     ) | zenity --progress \
         --title="Pixelize video..." \
-        --text="Iniciando..." \
+        --text="Starting..." \
         --percentage=0 --auto-close --width=400
 
     EXIT=${PIPESTATUS[0]}
@@ -154,36 +154,36 @@ if [ ${#files[@]} -eq 1 ] && echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
 
     if [[ $EXIT -ne 0 || -z "$out" || ! -f "$out" ]]; then
         err=$(tail -8 "$LOG")
-        zenity --error --title="Pixelize video — falló" --text="$err" --width=520
+        zenity --error --title="Pixelize video — failed" --text="$err" --width=520
         exit 1
     fi
 
     size_mb=$(awk -v b="$(stat -c%s "$out")" 'BEGIN{printf "%.1f", b/1048576}')
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Video pixelado" "$(basename "$out") — ${size_mb} MB" --icon=emblem-videos)
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Video pixelated" "$(basename "$out") — ${size_mb} MB" --icon=emblem-videos)
     [[ "$action" == "open" ]] && nautilus "$parent" 2>/dev/null &
     exit 0
 fi
 
-# ── Modo archivos individuales (imágenes) ────────────────────────────────────
+# ── Individual image files mode ───────────────────────────────────────────────
 if ! echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
-    zenity --error --text="Formato no soportado. Imágenes: ${IMAGE_EXTS//|/, }  ·  Video (uno solo): ${VIDEO_EXTS//|/, }  ·  o un directorio." --title="Pixelize"
+    zenity --error --text="Unsupported format. Images: ${IMAGE_EXTS//|/, }  ·  Video (single): ${VIDEO_EXTS//|/, }  ·  or a directory." --title="Pixelize"
     exit 1
 fi
 
-modo=$(zenity --list \
-    --title="Pixelizar imágenes" \
-    --text="Elegí el perfil para ${#files[@]} archivo(s):" \
+mode=$(zenity --list \
+    --title="Pixelize images" \
+    --text="Pick profile for ${#files[@]} file(s):" \
     --radiolist \
-    --column="" --column="Modo" --column="Descripción" \
+    --column="" --column="Mode" --column="Description" \
     --print-column=2 \
-    TRUE  "quick" "Variantes esenciales — rápido" \
-    FALSE "full"  "Todas las variantes de anonimización" \
+    TRUE  "quick" "Essential variants — fast" \
+    FALSE "full"  "All anonymization variants" \
     --width=560 --height=360)
 
-[ -z "$modo" ] && exit 0
+[ -z "$mode" ] && exit 0
 
-suffix="_quick"; [[ "$modo" == "full" ]] && suffix="_anonymized"
+suffix="_quick"; [[ "$mode" == "full" ]] && suffix="_anonymized"
 
 declare -a output_dirs=()
 for file in "${files[@]}"; do
@@ -201,13 +201,13 @@ done
         pct=$(( i * 100 / total ))
         echo "$pct"
         echo "# ($i/$total) $name"
-        "$PYTHON" "$SCRIPT" "$file" --profile "$modo" --output-dir "${output_dirs[$((i-1))]}" >/dev/null 2>>/tmp/pixelize.log
+        "$PYTHON" "$SCRIPT" "$file" --profile "$mode" --output-dir "${output_dirs[$((i-1))]}" >/dev/null 2>>/tmp/pixelize.log
     done
     echo "100"
-    echo "# Listo"
+    echo "# Done"
 ) | zenity --progress \
-    --title="Pixelizando..." \
-    --text="Iniciando..." \
+    --title="Pixelizing..." \
+    --text="Starting..." \
     --percentage=0 --auto-close --width=380
 
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
@@ -217,13 +217,13 @@ for d in "${output_dirs[@]}"; do [[ ! -d "$d" ]] && no_faces=$((no_faces + 1)); 
 ok=$(( ${#files[@]} - no_faces ))
 
 if [[ $no_faces -gt 0 && $ok -eq 0 ]]; then
-    notify-send "Pixelize — sin caras" "No se detectaron caras en ninguna imagen" --icon=dialog-warning
+    notify-send "Pixelize — no faces" "No faces detected in any image" --icon=dialog-warning
 elif [[ $no_faces -gt 0 ]]; then
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Pixelize listo (con advertencias)" "$ok procesada(s), $no_faces sin caras detectadas" --icon=emblem-photos)
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Pixelize done (with warnings)" "$ok processed, $no_faces with no faces" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
 else
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Pixelize listo" "${#files[@]} imagen(es) → $(basename "${output_dirs[-1]}")" --icon=emblem-photos)
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Pixelize done" "${#files[@]} image(s) → $(basename "${output_dirs[-1]}")" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
 fi

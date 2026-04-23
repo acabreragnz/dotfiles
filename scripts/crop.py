@@ -80,22 +80,22 @@ def unique_path(p: Path) -> Path:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="Crop de videos y GIFs (motor reutilizable).")
-    p.add_argument("input", type=Path, help="Video o GIF de entrada")
-    p.add_argument("-o", "--output", type=Path, help="Archivo de salida (default: <stem>_cropped.<ext>)")
-    p.add_argument("--left", default="0", help="Recorte izq en px o %% (default: 0)")
-    p.add_argument("--right", default="0", help="Recorte der en px o %% (default: 0)")
-    p.add_argument("--top", default="0", help="Recorte arriba en px o %% (default: 0)")
-    p.add_argument("--bottom", default="0", help="Recorte abajo en px o %% (default: 0)")
-    p.add_argument("--crf", type=int, default=18, help="CRF para video x264 (default: 18, menor = mejor)")
+    p = argparse.ArgumentParser(description="Crop for videos and GIFs (reusable motor).")
+    p.add_argument("input", type=Path, help="Input video or GIF")
+    p.add_argument("-o", "--output", type=Path, help="Output file (default: <stem>_cropped.<ext>)")
+    p.add_argument("--left", default="0", help="Left crop in px or %% (default: 0)")
+    p.add_argument("--right", default="0", help="Right crop in px or %% (default: 0)")
+    p.add_argument("--top", default="0", help="Top crop in px or %% (default: 0)")
+    p.add_argument("--bottom", default="0", help="Bottom crop in px or %% (default: 0)")
+    p.add_argument("--crf", type=int, default=18, help="CRF for x264 (default: 18, lower = better)")
     args = p.parse_args()
 
     src = args.input.expanduser().resolve()
     if not src.is_file():
-        sys.exit(f"Error: no existe {src}")
+        sys.exit(f"Error: file does not exist: {src}")
 
     if not shutil.which("ffmpeg"):
-        sys.exit("Error: falta 'ffmpeg' en PATH")
+        sys.exit("Error: 'ffmpeg' not found in PATH")
 
     ext = src.suffix.lower()
     if ext in VIDEO_EXTS:
@@ -103,10 +103,10 @@ def main() -> None:
     elif ext in GIF_EXTS:
         kind = "gif"
     else:
-        sys.exit(f"Error: extensión no soportada ({ext}). Video: {sorted(VIDEO_EXTS)}  ·  GIF: {sorted(GIF_EXTS)}")
+        sys.exit(f"Error: unsupported extension ({ext}). Video: {sorted(VIDEO_EXTS)}  ·  GIF: {sorted(GIF_EXTS)}")
 
     if all(v in ("", "0") for v in (args.left, args.right, args.top, args.bottom)):
-        sys.exit("Error: especificá al menos uno de --left/--right/--top/--bottom")
+        sys.exit("Error: specify at least one of --left/--right/--top/--bottom")
 
     try:
         vf = build_crop_filter(args.left, args.right, args.top, args.bottom)
@@ -121,7 +121,7 @@ def main() -> None:
         out = src.with_name(f"{src.stem}_cropped{src.suffix}")
     out.parent.mkdir(parents=True, exist_ok=True)
     if out == src:
-        sys.exit("Error: el output no puede sobreescribir el input")
+        sys.exit("Error: output cannot overwrite the input")
 
     src_mtime = os.stat(src).st_mtime
 

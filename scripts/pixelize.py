@@ -390,7 +390,7 @@ def generate(input_path: Path, output_dir: Path, src_mtime: float | None = None)
 
         # story — revelación progresiva en bandas desde abajo
         story_dir = face_dir / "story"
-        print("\n[face/story/ — revelación progresiva]")
+        print("\n[face/story/ — progressive reveal]")
         x1, y1, x2, y2 = box
         face_h = y2 - y1
         eye_cy = (lm["eye_l"][1] + lm["eye_r"][1]) // 2

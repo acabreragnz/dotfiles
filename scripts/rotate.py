@@ -57,7 +57,7 @@ def main():
         if out_dir == src_dir:
             dst = out_dir / src.name
         else:
-            dst = out_dir / f"{src.stem}_rotado_{args.angle}{src.suffix}"
+            dst = out_dir / f"{src.stem}_rotated_{args.angle}{src.suffix}"
         mtime = effective_mtime(src)
         img = Image.open(src)
         img.rotate(args.angle, expand=True).save(dst, quality=args.quality)
@@ -65,7 +65,7 @@ def main():
         if i % 50 == 0 or i == total:
             print(f"{i}/{total} done")
 
-    print(f"Completado! {total} imágenes rotadas {args.angle}°")
+    print(f"Done! {total} images rotated {args.angle}°")
 
 
 if __name__ == "__main__":

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Corta un tramo de video seleccionado en Nautilus (via ~/scripts/video_cut.py).
+# Corta un tramo de video seleccionado en Nautilus (via ~/scripts/video_trim.py).
 # Default: stream copy (sin pérdida, corte al keyframe más cercano).
 # Opcional: --precise re-encodea para corte exacto al frame.
 
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
-SCRIPT="$HOME/scripts/video_cut.py"
+SCRIPT="$HOME/scripts/video_trim.py"
 VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v|flv|wmv"
 
 mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
@@ -13,19 +13,19 @@ files=()
 for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
 
 if [ ${#files[@]} -eq 0 ]; then
-    zenity --error --text="No se recibieron archivos." --title="Cortar video"
+    zenity --error --text="No files received." --title="Trim video"
     exit 1
 fi
 
 if [ ${#files[@]} -gt 1 ]; then
-    zenity --error --text="Seleccioná un único video." --title="Cortar video"
+    zenity --error --text="Select a single video." --title="Trim video"
     exit 1
 fi
 
 src="${files[0]}"
 ext="${src##*.}"
 if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
-    zenity --error --text="Formato no soportado. Usá: ${VIDEO_EXTS//|/, }" --title="Cortar video"
+    zenity --error --text="Unsupported format. Use: ${VIDEO_EXTS//|/, }" --title="Trim video"
     exit 1
 fi
 
@@ -35,11 +35,11 @@ codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of
 hms=$(awk -v s="$duration_total" 'BEGIN{h=int(s/3600); m=int((s%3600)/60); sec=int(s%60); printf "%02d:%02d:%02d", h, m, sec}')
 
 values=$(zenity --forms \
-    --title="Cortar video" \
-    --text="Archivo: $(basename "$src")\nDuración: ${duration_total}s (${hms})   ·   Códec: ${codec}\n\nInicio/Fin aceptan segundos o HH:MM:SS. En 'Fin' sin ':' se interpreta como duración en seg.\n" \
-    --add-entry="Inicio — seg o HH:MM:SS (0)" \
-    --add-entry="Fin — HH:MM:SS (timestamp) o seg (duración)" \
-    --add-combo="Precisión" --combo-values="Sin pérdida (al keyframe)|Exacto (re-encode)" \
+    --title="Trim video" \
+    --text="File: $(basename "$src")\nDuration: ${duration_total}s (${hms})   ·   Codec: ${codec}\n\nStart/End accept seconds or HH:MM:SS. In 'End' without ':' it's interpreted as duration in seconds.\n" \
+    --add-entry="Start — seconds or HH:MM:SS (0)" \
+    --add-entry="End — HH:MM:SS (timestamp) or seconds (duration)" \
+    --add-combo="Precision" --combo-values="Lossless (at keyframe)|Exact (re-encode)" \
     --separator="|" \
     --width=560 --height=372)
 
@@ -57,18 +57,18 @@ if [[ -n "$END" ]]; then
         args+=(--duration "$END")
     fi
 fi
-[[ "$PRECISION" == "Exacto (re-encode)" ]] && args+=(--precise)
+[[ "$PRECISION" == "Exact (re-encode)" ]] && args+=(--precise)
 
 parent=$(dirname "$src")
-LOG=/tmp/video_cut.log
+LOG=/tmp/video_trim.log
 : > "$LOG"
 
 (
     echo "10"
-    if [[ "$PRECISION" == "Exacto (re-encode)" ]]; then
-        echo "# Re-encodeando (puede tardar)..."
+    if [[ "$PRECISION" == "Exact (re-encode)" ]]; then
+        echo "# Re-encoding (may take a while)..."
     else
-        echo "# Cortando (stream copy)..."
+        echo "# Trimming (stream copy)..."
     fi
     "$SCRIPT" "$src" "${args[@]}" >>"$LOG" 2>&1 &
     PID=$!
@@ -79,14 +79,14 @@ LOG=/tmp/video_cut.log
     rc=$?
     echo "100"
     if [[ $rc -eq 0 ]]; then
-        echo "# Listo"
+        echo "# Done"
     else
-        echo "# Error (ver $LOG)"
+        echo "# Error (see $LOG)"
     fi
     exit $rc
 ) | zenity --progress \
-    --title="Cortando video..." \
-    --text="Iniciando..." \
+    --title="Trimming video..." \
+    --text="Starting..." \
     --percentage=0 --auto-close --width=400 --pulsate
 
 EXIT=${PIPESTATUS[0]}
@@ -98,11 +98,11 @@ out=$(grep -oE '^✓ /[^ ]+' "$LOG" | tail -1 | sed 's/^✓ //')
 
 if [[ $EXIT -ne 0 || -z "$out" || ! -f "$out" ]]; then
     err=$(tail -8 "$LOG")
-    zenity --error --title="Cortar video — falló" --text="$err" --width=520
+    zenity --error --title="Trim video — failed" --text="$err" --width=520
     exit 1
 fi
 
 size_mb=$(awk -v b="$(stat -c%s "$out")" 'BEGIN{printf "%.1f", b/1048576}')
-action=$(notify-send --wait --action="open=Abrir carpeta" \
-    "Video cortado" "$(basename "$out") — ${size_mb} MB" --icon=emblem-videos)
+action=$(notify-send --wait --action="open=Open folder" \
+    "Video trimmed" "$(basename "$out") — ${size_mb} MB" --icon=emblem-videos)
 [[ "$action" == "open" ]] && nautilus "$parent" 2>/dev/null &

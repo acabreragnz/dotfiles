@@ -13,19 +13,19 @@ files=()
 for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
 
 if [ ${#files[@]} -eq 0 ]; then
-    zenity --error --text="No se recibieron archivos." --title="Video → GIF"
+    zenity --error --text="No files received." --title="Video → GIF"
     exit 1
 fi
 
 if [ ${#files[@]} -gt 1 ]; then
-    zenity --error --text="Seleccioná un único video." --title="Video → GIF"
+    zenity --error --text="Select a single video." --title="Video → GIF"
     exit 1
 fi
 
 src="${files[0]}"
 ext="${src##*.}"
 if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
-    zenity --error --text="Formato no soportado. Usá: ${VIDEO_EXTS//|/, }" --title="Video → GIF"
+    zenity --error --text="Unsupported format. Use: ${VIDEO_EXTS//|/, }" --title="Video → GIF"
     exit 1
 fi
 
@@ -38,13 +38,13 @@ orig_h=$(echo "$dims" | cut -dx -f2)
 # Preset de calidad
 preset=$(zenity --list \
     --title="Video → GIF — Preset" \
-    --text="Duración del video: ${duration_total}s\n\nElegí preset inicial (después podés ajustar):" \
+    --text="Video duration: ${duration_total}s\n\nPick initial preset (you can tweak next):" \
     --radiolist \
-    --column="" --column="Preset" --column="Descripción" \
+    --column="" --column="Preset" --column="Description" \
     --print-column=2 \
-    TRUE  "balance" "15fps / 480px / q90 — recomendado" \
-    FALSE "small"   "12fps / 360px / q80 — más liviano" \
-    FALSE "hq"      "20fps / 640px / q95 — calidad máxima" \
+    TRUE  "balance" "15fps / 480px / q90 — recommended" \
+    FALSE "small"   "12fps / 360px / q80 — lighter" \
+    FALSE "hq"      "20fps / 640px / q95 — top quality" \
     --width=520 --height=490)
 
 [ -z "$preset" ] && exit 0
@@ -58,17 +58,17 @@ esac
 # Form de configuración (vacío = aplica el default mostrado entre paréntesis)
 values=$(zenity --forms \
     --title="Video → GIF" \
-    --text="Archivo: $(basename "$src")\nDuración total: ${duration_total}s   ·   Original: ${orig_w}×${orig_h} px\n\nDejá Inicio y Fin vacíos = video entero. Ancho/Alto aceptan 'max' = original.\n" \
-    --add-entry="Inicio — seg o HH:MM:SS (0)" \
-    --add-entry="Fin — seg de duración, o HH:MM:SS (hasta el final)" \
+    --text="File: $(basename "$src")\nTotal duration: ${duration_total}s   ·   Original: ${orig_w}×${orig_h} px\n\nLeave Start and End empty = full video. Width/Height accept 'max' = original.\n" \
+    --add-entry="Start — seconds or HH:MM:SS (0)" \
+    --add-entry="End — seconds of duration, or HH:MM:SS (until the end)" \
     --add-entry="FPS (${DEF_FPS})" \
-    --add-entry="Ancho px (${DEF_W}, 'max' = ${orig_w})" \
-    --add-entry="Alto px para recortar (full, 'max' = ${orig_h})" \
-    --add-combo="Recortar alto desde" --combo-values="center|top|bottom" \
-    --add-entry="Calidad 1-100 (${DEF_Q})" \
-    --add-combo="Pixelar caras" --combo-values="No|Sí (mosaic)" \
-    --add-combo="Modelo (si pixelás)" --combo-values="SCRFD (balance · default)|RetinaFace-R34 (máx. precisión · lento)|CenterFace (rápido)" \
-    --add-combo="Rellenar gaps (si pixelás)" --combo-values="Sí|No" \
+    --add-entry="Width px (${DEF_W}, 'max' = ${orig_w})" \
+    --add-entry="Height px to crop (full, 'max' = ${orig_h})" \
+    --add-combo="Crop height from" --combo-values="center|top|bottom" \
+    --add-entry="Quality 1-100 (${DEF_Q})" \
+    --add-combo="Pixelate faces" --combo-values="No|Yes (mosaic)" \
+    --add-combo="Model (if pixelating)" --combo-values="SCRFD (balance · default)|RetinaFace-R34 (max precision · slow)|CenterFace (fast)" \
+    --add-combo="Fill gaps (if pixelating)" --combo-values="Yes|No" \
     --separator="|" \
     --width=540 --height=696)
 
@@ -76,7 +76,7 @@ values=$(zenity --forms \
 
 IFS='|' read -r START END FPS WIDTH CROP_HEIGHT CROP_Y QUALITY PIXELATE_CHOICE PIXELATE_MODEL PIXELATE_FILL <<< "$values"
 PIXELATE=0
-[[ "$PIXELATE_CHOICE" == "Sí (mosaic)" ]] && PIXELATE=1
+[[ "$PIXELATE_CHOICE" == "Yes (mosaic)" ]] && PIXELATE=1
 
 START="${START:-0}"
 FPS="${FPS:-$DEF_FPS}"
@@ -112,8 +112,8 @@ fi
 if [[ "$PIXELATE" == "1" ]]; then
     args+=(--pixelate-faces)
     case "$PIXELATE_MODEL" in
-        "CenterFace (rápido)") args+=(--pixelate-model centerface) ;;
-        "RetinaFace-R34 (máx. precisión · lento)") args+=(--pixelate-model retinaface) ;;
+        "CenterFace (fast)") args+=(--pixelate-model centerface) ;;
+        "RetinaFace-R34 (max precision · slow)") args+=(--pixelate-model retinaface) ;;
         *) args+=(--pixelate-model scrfd) ;;
     esac
     [[ "$PIXELATE_FILL" == "No" ]] && args+=(--no-pixelate-fill-gaps)
@@ -124,17 +124,20 @@ LOG=/tmp/video2gif.log
 
 (
     echo "10"
-    echo "# Extrayendo frames..."
+    echo "# Extracting frames..."
     "$PYTHON" "$SCRIPT" "$src" "${args[@]}" >>"$LOG" 2>&1 &
     PID=$!
     while kill -0 "$PID" 2>/dev/null; do
-        if grep -q "Empaquetando" "$LOG"; then
+        if grep -q "Packaging" "$LOG"; then
             echo "85"
-            echo "# Empaquetando GIF con gifski..."
-        elif grep -q "Pixelando caras" "$LOG"; then
-            last=$(grep -oE "[0-9]+/[0-9]+ frames" "$LOG" | tail -1)
-            echo "50"
-            echo "# Pixelando caras... ${last}"
+            echo "# Packaging GIF with gifski..."
+        elif grep -q "Applying mosaic" "$LOG"; then
+            echo "60"
+            echo "# Applying mosaic on faces..."
+        elif grep -q "Detecting faces" "$LOG"; then
+            last=$(grep -oE "[0-9]+/[0-9]+ analyzed" "$LOG" | tail -1)
+            echo "40"
+            echo "# Detecting faces... ${last}"
         fi
         sleep 0.5
     done
@@ -142,14 +145,14 @@ LOG=/tmp/video2gif.log
     rc=$?
     echo "100"
     if [[ $rc -eq 0 ]]; then
-        echo "# Listo"
+        echo "# Done"
     else
-        echo "# Error (ver $LOG)"
+        echo "# Error (see $LOG)"
     fi
     exit $rc
 ) | zenity --progress \
-    --title="Generando GIF..." \
-    --text="Iniciando..." \
+    --title="Generating GIF..." \
+    --text="Starting..." \
     --percentage=0 --auto-close --width=400
 
 EXIT=${PIPESTATUS[0]}
@@ -161,11 +164,11 @@ out=$(grep -oE '^✓ /[^ ]+' "$LOG" | tail -1 | sed 's/^✓ //')
 
 if [[ $EXIT -ne 0 || -z "$out" || ! -f "$out" ]]; then
     err=$(tail -5 "$LOG")
-    zenity --error --title="Video → GIF — falló" --text="$err" --width=500
+    zenity --error --title="Video → GIF — failed" --text="$err" --width=500
     exit 1
 fi
 
 size_kb=$(( $(stat -c%s "$out") / 1024 ))
-action=$(notify-send --wait --action="open=Abrir carpeta" \
-    "GIF listo" "$(basename "$out") — ${size_kb} KB" --icon=emblem-photos)
+action=$(notify-send --wait --action="open=Open folder" \
+    "GIF done" "$(basename "$out") — ${size_kb} KB" --icon=emblem-photos)
 [[ "$action" == "open" ]] && nautilus "$parent" 2>/dev/null &

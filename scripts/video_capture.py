@@ -223,18 +223,18 @@ def process(
     stem = Path(video_path).stem
 
     print(f"Video : {Path(video_path).name}")
-    print(f"Modo  : {mode} | FPS análisis: {fps} | Duración: {duration:.1f}s (~{total_frames} frames)")
+    print(f"Mode  : {mode} | Analysis FPS: {fps} | Duration: {duration:.1f}s (~{total_frames} frames)")
     if rotation:
-        print(f"Rot.  : {rotation}° corregida automáticamente")
+        print(f"Rot.  : {rotation}° auto-corrected")
     if max_width > 0:
-        print(f"Scale : max {max_width}px de ancho (sin upscale)")
+        print(f"Scale : max {max_width}px width (no upscale)")
     if start or end:
-        end_label = f"{end:.0f}s" if end else "fin"
-        print(f"Rango : {start:.0f}s → {end_label}")
+        end_label = f"{end:.0f}s" if end else "end"
+        print(f"Range : {start:.0f}s → {end_label}")
     if pixelize:
-        print(f"Pixelize: activado — cargando modelo de detección de caras...")
+        print(f"Pixelize: enabled — loading face detection model...")
         cv2, detect_faces, apply_mosaic = _load_pixelizer()
-        print(f"Pixelize: listo")
+        print(f"Pixelize: ready")
     print()
 
     src_mtime = effective_mtime(video_path)
@@ -326,7 +326,7 @@ def main():
     args = parser.parse_args()
 
     if not Path(args.video).exists():
-        print(f"Error: no se encontró '{args.video}'", file=sys.stderr)
+        print(f"Error: not found '{args.video}'", file=sys.stderr)
         sys.exit(1)
 
     def parse_time(s: str) -> float:
@@ -351,7 +351,7 @@ def main():
         date_overlay=not args.no_date,
     )
 
-    print(f"\nGuardados {captured} frames en: {output_dir}/")
+    print(f"\nSaved {captured} frames in: {output_dir}/")
 
 
 if __name__ == "__main__":

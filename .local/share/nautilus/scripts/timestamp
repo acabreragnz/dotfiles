@@ -8,7 +8,7 @@ IMG_SCRIPT="$HOME/scripts/image_label.py"
 VID_SCRIPT="$HOME/scripts/video_label.py"
 
 IMAGE_EXTS="jpg|jpeg|png|webp|bmp|tiff|tif"
-VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v|flv|wmv"
+VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v|flv|wmv|gif"
 ALL_EXTS="${IMAGE_EXTS}|${VIDEO_EXTS}"
 
 mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
@@ -16,7 +16,7 @@ files=()
 for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
 
 if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
-    zenity --error --text="No se recibieron archivos." --title="Timestamp"
+    zenity --error --text="No files received." --title="Timestamp"
     exit 1
 fi
 
@@ -28,31 +28,28 @@ get_unique_dir() {
     echo "$dir"
 }
 
-# ── Selección de posición ────────────────────────────────────────────────────
-pos_sel=$(zenity --list \
-    --title="Timestamp — posición" \
-    --text="¿Dónde poner la fecha? (podés elegir varias)" \
+# ── Position selection ────────────────────────────────────────────────────────
+position=$(zenity --list \
+    --title="Timestamp — position" \
+    --text="Where to put the date? (pick one or more)" \
     --checklist \
-    --column="" --column="Posición" \
+    --column="" --column="Position" \
     --print-column=2 \
     --separator="," \
-    TRUE  "derecha" \
-    FALSE "izquierda" \
-    FALSE "centro" \
+    TRUE  "right" \
+    FALSE "left" \
+    FALSE "center" \
     --width=480 --height=360)
 
-[ -z "$pos_sel" ] && exit 0
+[ -z "$position" ] && exit 0
 
-position=$(echo "$pos_sel" \
-    | sed 's/derecha/right/g; s/izquierda/left/g; s/centro/center/g')
-
-# ── Modo directorio ───────────────────────────────────────────────────────────
+# ── Directory mode ────────────────────────────────────────────────────────────
 if [ -d "${files[0]}" ]; then
     dir="${files[0]}"
     mapfile -t items < <(find "$dir" -maxdepth 1 -type f | grep -iE "\.(${ALL_EXTS})$" | sort)
 
     if [ ${#items[@]} -eq 0 ]; then
-        zenity --error --text="No se encontraron imágenes ni videos en el directorio." --title="Timestamp"
+        zenity --error --text="No images or videos found in the directory." --title="Timestamp"
         exit 1
     fi
 
@@ -74,39 +71,45 @@ if [ -d "${files[0]}" ]; then
                 python3 "$IMG_SCRIPT" "$item" --position "$position" --output-dir "$outdir" >/dev/null 2>>/tmp/timestamp.log &
             else
                 stem="${name%.*}"
-                python3 "$VID_SCRIPT" "$item" --position "$position" --output "$outdir/${stem}_labeled.mp4" >/dev/null 2>>/tmp/timestamp.log &
+                out_ext="mp4"; [[ "${ext,,}" == "gif" ]] && out_ext="gif"
+                python3 "$VID_SCRIPT" "$item" --position "$position" --output "$outdir/${stem}_labeled.${out_ext}" >/dev/null 2>>/tmp/timestamp.log &
             fi
             WORKER_PID=$!
             wait $WORKER_PID
         done
         echo "100"
-        echo "# Listo"
-    ) | zenity --progress --title="Aplicando timestamp..." --text="Iniciando..." \
+        echo "# Done"
+    ) | zenity --progress --title="Applying timestamp..." --text="Starting..." \
         --percentage=0 --auto-close --width=380
 
     EXIT_CODE=${PIPESTATUS[1]}
     [[ $EXIT_CODE -ne 0 && -n "$WORKER_PID" ]] && kill "$WORKER_PID" 2>/dev/null && exit 0
 
     pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Timestamp listo" "${#items[@]} archivo(s) → $(basename "$outdir")" --icon=emblem-photos)
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Timestamp done" "${#items[@]} file(s) → $(basename "$outdir")" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "$outdir" 2>/dev/null &
     exit 0
 fi
 
-# ── Modo archivos individuales ────────────────────────────────────────────────
+# ── Individual files mode ─────────────────────────────────────────────────────
 ext="${files[0]##*.}"
 if ! echo "${ext,,}" | grep -qE "^($ALL_EXTS)$"; then
-    zenity --error --text="Formato no soportado. Usá imágenes, videos o un directorio." --title="Timestamp"
+    zenity --error --text="Unsupported format. Use images, videos or a directory." --title="Timestamp"
     exit 1
 fi
 
+single_mode=0
+[ ${#files[@]} -eq 1 ] && single_mode=1
+
 declare -a output_dirs=()
-for file in "${files[@]}"; do
-    parent=$(dirname "$file")
-    stem=$(basename "${file%.*}")
-    output_dirs+=("$(get_unique_dir "$parent/${stem}_labeled")")
-done
+if [[ $single_mode -eq 0 ]]; then
+    for file in "${files[@]}"; do
+        parent=$(dirname "$file")
+        stem=$(basename "${file%.*}")
+        output_dirs+=("$(get_unique_dir "$parent/${stem}_labeled")")
+    done
+fi
 
 WORKER_PID=""
 (
@@ -117,22 +120,28 @@ WORKER_PID=""
         name=$(basename "$file")
         stem="${name%.*}"
         ext="${name##*.}"
-        outdir="${output_dirs[$((i-1))]}"
-        mkdir -p "$outdir"
+        parent=$(dirname "$file")
         pct=$(( i * 100 / total ))
         echo "$pct"
         echo "# ($i/$total) $name"
+        if [[ $single_mode -eq 1 ]]; then
+            outdir="$parent"
+        else
+            outdir="${output_dirs[$((i-1))]}"
+            mkdir -p "$outdir"
+        fi
         if echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
             python3 "$IMG_SCRIPT" "$file" --position "$position" --output-dir "$outdir" >/dev/null 2>>/tmp/timestamp.log &
         else
-            python3 "$VID_SCRIPT" "$file" --position "$position" --output "$outdir/${stem}_labeled.mp4" >/dev/null 2>>/tmp/timestamp.log &
+            out_ext="mp4"; [[ "${ext,,}" == "gif" ]] && out_ext="gif"
+            python3 "$VID_SCRIPT" "$file" --position "$position" --output "$outdir/${stem}_labeled.${out_ext}" >/dev/null 2>>/tmp/timestamp.log &
         fi
         WORKER_PID=$!
         wait $WORKER_PID
     done
     echo "100"
-    echo "# Listo"
-) | zenity --progress --title="Aplicando timestamp..." --text="Iniciando..." \
+    echo "# Done"
+) | zenity --progress --title="Applying timestamp..." --text="Starting..." \
     --percentage=0 --auto-close --width=380
 
 EXIT_CODE=${PIPESTATUS[1]}
@@ -140,6 +149,22 @@ EXIT_CODE=${PIPESTATUS[1]}
 
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
 
-action=$(notify-send --wait --action="open=Abrir carpeta" \
-    "Timestamp listo" "${#files[@]} archivo(s) → $(basename "${output_dirs[-1]}")" --icon=emblem-photos)
-[[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
+if [[ $single_mode -eq 1 ]]; then
+    only="${files[0]}"
+    stem=$(basename "${only%.*}")
+    ext="${only##*.}"
+    parent=$(dirname "$only")
+    if echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
+        out="$parent/${stem}_labeled.${ext}"
+    else
+        out_ext="mp4"; [[ "${ext,,}" == "gif" ]] && out_ext="gif"
+        out="$parent/${stem}_labeled.${out_ext}"
+    fi
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Timestamp done" "$(basename "$out")" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "$parent" 2>/dev/null &
+else
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Timestamp done" "${#files[@]} file(s) → $(basename "${output_dirs[-1]}")" --icon=emblem-photos)
+    [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
+fi

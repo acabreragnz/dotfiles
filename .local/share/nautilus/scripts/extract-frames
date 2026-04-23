@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Captura frames de videos seleccionados en Nautilus.
+# Extrae frames de videos seleccionados en Nautilus.
 
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
@@ -11,40 +11,40 @@ files=()
 for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
 
 if [ ${#files[@]} -eq 0 ] || [ -z "${files[0]}" ]; then
-    zenity --error --text="No se recibieron archivos." --title="Capturas"
+    zenity --error --text="No files received." --title="Extract frames"
     exit 1
 fi
 
 ext="${files[0]##*.}"
 if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
-    zenity --error --text="Este script es solo para videos." --title="Capturas"
+    zenity --error --text="This script only handles videos." --title="Extract frames"
     exit 1
 fi
 
-# ── Selección de modo (radiolist) ─────────────────────────────────────────────
-modo=$(zenity --list \
-    --title="Capturar frames" \
-    --text="Elegí el modo para ${#files[@]} archivo(s):" \
+# ── Mode selection (radiolist) ────────────────────────────────────────────────
+mode=$(zenity --list \
+    --title="Extract frames" \
+    --text="Pick mode for ${#files[@]} file(s):" \
     --radiolist \
-    --column="" --column="Modo" --column="Descripción" \
+    --column="" --column="Mode" --column="Description" \
     --print-column=2 \
-    TRUE  "medium" "Movimiento significativo (4 FPS) — recomendado" \
-    FALSE "full"   "Todos los frames (FPS real del video)" \
-    FALSE "low"    "Solo cambios grandes (2 FPS)" \
+    TRUE  "medium" "Significant motion (4 FPS) — recommended" \
+    FALSE "full"   "All frames (video's real FPS)" \
+    FALSE "low"    "Only big changes (2 FPS)" \
     --width=580 --height=300)
 
-[ -z "$modo" ] && exit 0
+[ -z "$mode" ] && exit 0
 
-# ── Opción pixelize (checkbox separado) ───────────────────────────────────────
+# ── Pixelize option (separate checkbox) ───────────────────────────────────────
 pixelize_flag=""
 zenity --question \
-    --title="Capturas — pixelize" \
-    --text="¿Anonimizar caras en los frames capturados?" \
-    --ok-label="Sí" --cancel-label="No" --default-cancel 2>/dev/null \
+    --title="Extract frames — pixelize" \
+    --text="Anonymize faces in the extracted frames?" \
+    --ok-label="Yes" --cancel-label="No" --default-cancel 2>/dev/null \
     && pixelize_flag="--pixelize"
 
-# ── Warning para modo full ────────────────────────────────────────────────────
-if [[ "$modo" == "full" ]]; then
+# ── Warning for full mode ─────────────────────────────────────────────────────
+if [[ "$mode" == "full" ]]; then
     total_frames=0
     for file in "${files[@]}"; do
         fps_raw=$(ffprobe -v quiet -select_streams v:0 \
@@ -58,9 +58,9 @@ if [[ "$modo" == "full" ]]; then
     done
     if [[ $total_frames -gt 500 ]]; then
         zenity --question \
-            --title="Capturas — modo full" \
-            --text="El modo full va a generar aproximadamente <b>$total_frames frames</b>.\n¿Continuar?" \
-            --ok-label="Continuar" --cancel-label="Cancelar" 2>/dev/null || exit 0
+            --title="Extract frames — full mode" \
+            --text="Full mode will generate approximately <b>$total_frames frames</b>.\nContinue?" \
+            --ok-label="Continue" --cancel-label="Cancel" 2>/dev/null || exit 0
     fi
 fi
 
@@ -69,7 +69,7 @@ declare -a output_dirs=()
 for file in "${files[@]}"; do
     dir=$(dirname "$file")
     stem=$(basename "${file%.*}")
-    output_dirs+=("$dir/${stem}_capturas_${modo}")
+    output_dirs+=("$dir/${stem}_frames_${mode}")
 done
 
 PID_FILE=$(mktemp)
@@ -83,16 +83,16 @@ PID_FILE=$(mktemp)
         pct=$(( i * 100 / total ))
         echo "$pct"
         echo "# ($i/$total) $name"
-        python3 "$SCRIPT" "$file" "$modo" $pixelize_flag \
+        python3 "$SCRIPT" "$file" "$mode" $pixelize_flag \
             --output "${output_dirs[$((i-1))]}" >/dev/null 2>/dev/null &
         echo $! > "$PID_FILE"
         wait
     done
     echo "100"
-    echo "# Listo"
+    echo "# Done"
 ) | zenity --progress \
-    --title="Capturando frames..." \
-    --text="Iniciando..." \
+    --title="Extracting frames..." \
+    --text="Starting..." \
     --percentage=0 --auto-close --width=380
 
 EXIT_CODE=${PIPESTATUS[1]}
@@ -110,13 +110,13 @@ for d in "${output_dirs[@]}"; do [[ ! -d "$d" ]] && failed=$((failed + 1)); done
 ok=$(( ${#files[@]} - failed ))
 
 if [[ $failed -gt 0 && $ok -eq 0 ]]; then
-    notify-send "Capturas — error" "No se generaron frames en ningún video" --icon=dialog-error
+    notify-send "Extract frames — error" "No frames generated for any video" --icon=dialog-error
 elif [[ $failed -gt 0 ]]; then
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Capturas listas (con errores)" "$ok procesado(s), $failed fallido(s)" --icon=emblem-photos)
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Frames extracted (with errors)" "$ok processed, $failed failed" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
 else
-    action=$(notify-send --wait --action="open=Abrir carpeta" \
-        "Capturas listas" "$ok archivo(s) en modo $modo" --icon=emblem-photos)
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Frames extracted" "$ok file(s) in $mode mode" --icon=emblem-photos)
     [[ "$action" == "open" ]] && nautilus "${output_dirs[-1]}" 2>/dev/null &
 fi
