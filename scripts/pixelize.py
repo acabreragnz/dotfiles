@@ -37,8 +37,6 @@ DEFACE_SITE = "/home/tcabrera/.local/share/pipx/venvs/deface/lib/python3.12/site
 if DEFACE_SITE not in sys.path:
     sys.path.insert(0, DEFACE_SITE)
 
-from deface.centerface import CenterFace  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Blur helpers
@@ -85,16 +83,134 @@ def apply_mosaic_median(img: np.ndarray, box, block_pct: float) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
-# Face detection with mask_scale
+# Face detection — soporta CenterFace (2020, 7 MB) y SCRFD via InsightFace (2021, 17 MB).
 # ---------------------------------------------------------------------------
 
-def detect_faces(img_bgr: np.ndarray, threshold: float = 0.2, mask_scale: float = 1.3):
+DEFAULT_MODEL = "scrfd"
+_DETECTOR_CACHE: dict[str, "Detector"] = {}
+
+
+class Detector:
+    """Interfaz común: devuelve lista [((x1,y1,x2,y2,score), landmarks_dict)]."""
+
+    def detect(self, img_bgr: np.ndarray, threshold: float):
+        raise NotImplementedError
+
+
+class CenterFaceDetector(Detector):
+    def __init__(self):
+        from deface.centerface import CenterFace  # noqa: E402
+        self._cf = CenterFace()
+
+    def detect(self, img_bgr, threshold):
+        dets, lms = self._cf(img_bgr, threshold=threshold)
+        out = []
+        for det, lm in zip(dets, lms):
+            x1, y1, x2, y2, score = float(det[0]), float(det[1]), float(det[2]), float(det[3]), float(det[4])
+            landmarks = {
+                "eye_l":   (int(lm[0]), int(lm[1])),
+                "eye_r":   (int(lm[2]), int(lm[3])),
+                "nose":    (int(lm[4]), int(lm[5])),
+                "mouth_l": (int(lm[6]), int(lm[7])),
+                "mouth_r": (int(lm[8]), int(lm[9])),
+            }
+            out.append(((x1, y1, x2, y2, score), landmarks))
+        return out
+
+
+class SCRFDDetector(Detector):
+    """SCRFD-10G via InsightFace — buffalo_l pack.
+    Primera ejecución descarga ~280 MB a ~/.insightface/models/buffalo_l (one-time).
+    """
+
+    def __init__(self, det_size: tuple[int, int] = (640, 640), low_conf: float = 0.05):
+        import insightface  # noqa: E402
+        from insightface.app import FaceAnalysis  # noqa: E402
+        self._app = FaceAnalysis(
+            name="buffalo_l",
+            allowed_modules=["detection"],
+        )
+        self._app.prepare(ctx_id=-1, det_size=det_size)
+        # Bajamos el threshold interno para que el caller controle el filtrado final.
+        self._app.det_model.det_thresh = low_conf
+
+    def detect(self, img_bgr, threshold):
+        faces = self._app.get(img_bgr)
+        out = []
+        for f in faces:
+            score = float(f.det_score)
+            if score < threshold:
+                continue
+            x1, y1, x2, y2 = f.bbox
+            kps = f.kps
+            landmarks = {
+                "eye_l":   (int(kps[0][0]), int(kps[0][1])),
+                "eye_r":   (int(kps[1][0]), int(kps[1][1])),
+                "nose":    (int(kps[2][0]), int(kps[2][1])),
+                "mouth_l": (int(kps[3][0]), int(kps[3][1])),
+                "mouth_r": (int(kps[4][0]), int(kps[4][1])),
+            }
+            out.append(((float(x1), float(y1), float(x2), float(y2), score), landmarks))
+        return out
+
+
+class RetinaFaceDetector(Detector):
+    """RetinaFace ResNet34 via uniface — máxima precisión en caras chicas/perfil/oclusión.
+    Primera ejecución descarga ~56 MB (ONNX del modelo).
+    """
+
+    def __init__(self, input_size: tuple[int, int] = (640, 640), low_conf: float = 0.05):
+        from uniface import RetinaFace  # noqa: E402
+        from uniface.constants import RetinaFaceWeights  # noqa: E402
+        # confidence_threshold bajo → dejamos que el caller filtre con su `threshold`.
+        self._rf = RetinaFace(
+            model_name=RetinaFaceWeights.RESNET34,
+            confidence_threshold=low_conf,
+            input_size=input_size,
+        )
+
+    def detect(self, img_bgr, threshold):
+        faces = self._rf.detect(img_bgr)
+        out = []
+        for f in faces:
+            score = float(f.confidence)
+            if score < threshold:
+                continue
+            x1, y1, x2, y2 = f.bbox
+            kps = f.landmarks
+            landmarks = {
+                "eye_l":   (int(kps[0][0]), int(kps[0][1])),
+                "eye_r":   (int(kps[1][0]), int(kps[1][1])),
+                "nose":    (int(kps[2][0]), int(kps[2][1])),
+                "mouth_l": (int(kps[3][0]), int(kps[3][1])),
+                "mouth_r": (int(kps[4][0]), int(kps[4][1])),
+            }
+            out.append(((float(x1), float(y1), float(x2), float(y2), score), landmarks))
+        return out
+
+
+def get_detector(model: str = DEFAULT_MODEL) -> Detector:
+    """Factory con cache: evita re-instanciar el detector (y re-cargar pesos)."""
+    key = (model or DEFAULT_MODEL).lower()
+    if key not in _DETECTOR_CACHE:
+        if key == "centerface":
+            _DETECTOR_CACHE[key] = CenterFaceDetector()
+        elif key in ("scrfd", "insightface"):
+            _DETECTOR_CACHE[key] = SCRFDDetector()
+        elif key in ("retinaface", "retinaface-r34", "retinaface_r34"):
+            _DETECTOR_CACHE[key] = RetinaFaceDetector()
+        else:
+            raise ValueError(f"modelo desconocido: {model}  (usá 'scrfd', 'retinaface' o 'centerface')")
+    return _DETECTOR_CACHE[key]
+
+
+def detect_faces(img_bgr: np.ndarray, threshold: float = 0.2, mask_scale: float = 1.3,
+                 model: str = DEFAULT_MODEL):
     H, W = img_bgr.shape[:2]
-    centerface = CenterFace()
-    dets, lms = centerface(img_bgr, threshold=threshold)
+    detector = get_detector(model)
+    results = detector.detect(img_bgr, threshold=threshold)
     boxes, landmarks = [], []
-    for det, lm in zip(dets, lms):
-        rx1, ry1, rx2, ry2 = det[:4]
+    for (rx1, ry1, rx2, ry2, _score), lm in results:
         cx, cy = (rx1 + rx2) / 2, (ry1 + ry2) / 2
         fw = (rx2 - rx1) * mask_scale
         fh = (ry2 - ry1) * mask_scale
@@ -103,13 +219,7 @@ def detect_faces(img_bgr: np.ndarray, threshold: float = 0.2, mask_scale: float 
         x2 = min(W, int(cx + fw / 2))
         y2 = min(H, int(cy + fh / 2))
         boxes.append((x1, y1, x2, y2))
-        landmarks.append({
-            "eye_l":   (int(lm[0]), int(lm[1])),
-            "eye_r":   (int(lm[2]), int(lm[3])),
-            "nose":    (int(lm[4]), int(lm[5])),
-            "mouth_l": (int(lm[6]), int(lm[7])),
-            "mouth_r": (int(lm[8]), int(lm[9])),
-        })
+        landmarks.append(lm)
     return boxes, landmarks
 
 

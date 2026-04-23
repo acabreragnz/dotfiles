@@ -5,9 +5,11 @@
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 SCRIPT="$HOME/scripts/pixelize.py"
+VIDEO_SCRIPT="$HOME/scripts/video_pixelize.py"
 PYTHON="/home/tcabrera/.local/share/pipx/venvs/deface/bin/python3"
 
 IMAGE_EXTS="jpg|jpeg|png|webp"
+VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v"
 
 mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
 files=()
@@ -75,10 +77,97 @@ if [ -d "${files[0]}" ]; then
     exit 0
 fi
 
-# ── Modo archivos individuales ────────────────────────────────────────────────
+# ── Modo video (un único archivo de video) ────────────────────────────────────
 ext="${files[0]##*.}"
+if [ ${#files[@]} -eq 1 ] && echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
+    src="${files[0]}"
+    duration_total=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$src" 2>/dev/null | awk '{printf "%.1f", $1}')
+    hms=$(awk -v s="$duration_total" 'BEGIN{h=int(s/3600); m=int((s%3600)/60); sec=int(s%60); printf "%02d:%02d:%02d", h, m, sec}')
+
+    values=$(zenity --forms \
+        --title="Pixelize video" \
+        --text="Archivo: $(basename "$src")\nDuración: ${duration_total}s (${hms})\n\nRango opcional. Inicio/Fin aceptan seg o HH:MM:SS; en 'Fin' sin ':' se interpreta como duración en seg.\n" \
+        --add-entry="Inicio (vacío = 0)" \
+        --add-entry="Fin — HH:MM:SS (timestamp) o seg (duración)" \
+        --add-combo="Modelo" --combo-values="SCRFD (balance · default)|RetinaFace-R34 (máx. precisión · ~3× más lento)|CenterFace (más rápido)" \
+        --add-combo="Rellenar gaps" --combo-values="Sí|No" \
+        --add-entry="Block %% del ancho de cara (30)" \
+        --add-entry="Threshold detección (0.2)" \
+        --separator="|" \
+        --width=560 --height=516)
+
+    [ -z "$values" ] && exit 0
+
+    IFS='|' read -r V_START V_END V_MODEL V_FILL V_BLOCK V_THRESH <<< "$values"
+    args=()
+    [[ -n "$V_START" ]] && args+=(--start "$V_START")
+    if [[ -n "$V_END" ]]; then
+        if [[ "$V_END" == *:* ]]; then
+            args+=(--to "$V_END")
+        else
+            args+=(--duration "$V_END")
+        fi
+    fi
+    case "$V_MODEL" in
+        "CenterFace (más rápido)") args+=(--model centerface) ;;
+        "RetinaFace-R34 (máx. precisión · ~3× más lento)") args+=(--model retinaface) ;;
+        *) args+=(--model scrfd) ;;
+    esac
+    [[ "$V_FILL" == "No" ]] && args+=(--no-fill-gaps)
+    [[ -n "$V_BLOCK" ]]  && args+=(--block-pct "$V_BLOCK")
+    [[ -n "$V_THRESH" ]] && args+=(--threshold "$V_THRESH")
+
+    parent=$(dirname "$src")
+    LOG=/tmp/video_pixelize.log
+    : > "$LOG"
+
+    (
+        echo "5"
+        echo "# Extrayendo frames..."
+        "$PYTHON" "$VIDEO_SCRIPT" "$src" "${args[@]}" >>"$LOG" 2>&1 &
+        PID=$!
+        while kill -0 "$PID" 2>/dev/null; do
+            if grep -q "Re-encodeando" "$LOG"; then
+                echo "85"; echo "# Re-encodeando video..."
+            elif grep -q "Aplicando mosaic" "$LOG"; then
+                echo "65"; echo "# Aplicando mosaic..."
+            elif grep -q "Detectando caras" "$LOG"; then
+                last=$(grep -oE "[0-9]+/[0-9]+ analizados" "$LOG" | tail -1)
+                echo "30"; echo "# Detectando caras ${last}"
+            fi
+            sleep 0.5
+        done
+        wait "$PID"
+        rc=$?
+        echo "100"
+        [[ $rc -eq 0 ]] && echo "# Listo" || echo "# Error (ver $LOG)"
+        exit $rc
+    ) | zenity --progress \
+        --title="Pixelize video..." \
+        --text="Iniciando..." \
+        --percentage=0 --auto-close --width=400
+
+    EXIT=${PIPESTATUS[0]}
+    pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+
+    out=$(grep -oE '^✓ /[^ ]+' "$LOG" | tail -1 | sed 's/^✓ //')
+
+    if [[ $EXIT -ne 0 || -z "$out" || ! -f "$out" ]]; then
+        err=$(tail -8 "$LOG")
+        zenity --error --title="Pixelize video — falló" --text="$err" --width=520
+        exit 1
+    fi
+
+    size_mb=$(awk -v b="$(stat -c%s "$out")" 'BEGIN{printf "%.1f", b/1048576}')
+    action=$(notify-send --wait --action="open=Abrir carpeta" \
+        "Video pixelado" "$(basename "$out") — ${size_mb} MB" --icon=emblem-videos)
+    [[ "$action" == "open" ]] && nautilus "$parent" 2>/dev/null &
+    exit 0
+fi
+
+# ── Modo archivos individuales (imágenes) ────────────────────────────────────
 if ! echo "${ext,,}" | grep -qE "^($IMAGE_EXTS)$"; then
-    zenity --error --text="Este script es solo para imágenes (jpg, png, webp) o un directorio." --title="Pixelize"
+    zenity --error --text="Formato no soportado. Imágenes: ${IMAGE_EXTS//|/, }  ·  Video (uno solo): ${VIDEO_EXTS//|/, }  ·  o un directorio." --title="Pixelize"
     exit 1
 fi
 

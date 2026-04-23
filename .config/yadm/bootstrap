@@ -664,6 +664,20 @@ if command -v pipx >/dev/null 2>&1; then
       log "INFO" "$pkg ya instalado via pipx"
     fi
   done
+
+  # Detectores extra de caras para pixelize/video_pixelize/video2gif
+  # (SCRFD vía insightface + onnxruntime, RetinaFace-R34 vía uniface)
+  DEFACE_PY="$HOME/.local/share/pipx/venvs/deface/bin/python"
+  if [ -x "$DEFACE_PY" ]; then
+    for dep in insightface onnxruntime uniface; do
+      if ! "$DEFACE_PY" -c "import $dep" >/dev/null 2>&1; then
+        log "INFO" "Inyectando $dep en venv deface..."
+        pipx inject deface "$dep"
+      else
+        log "INFO" "$dep ya inyectado en venv deface"
+      fi
+    done
+  fi
 else
   log "WARNING" "pipx no disponible, salteando paquetes pipx"
 fi

@@ -58,19 +58,23 @@ esac
 # Form de configuración (vacío = aplica el default mostrado entre paréntesis)
 values=$(zenity --forms \
     --title="Video → GIF" \
-    --text="Archivo: $(basename "$src")\nDuración total: ${duration_total}s   ·   Original: ${orig_w}×${orig_h} px\n\nDejá Inicio y Fin vacíos = video entero. Ancho acepta 'max' = original.\n" \
+    --text="Archivo: $(basename "$src")\nDuración total: ${duration_total}s   ·   Original: ${orig_w}×${orig_h} px\n\nDejá Inicio y Fin vacíos = video entero. Ancho/Alto aceptan 'max' = original.\n" \
     --add-entry="Inicio — seg o HH:MM:SS (0)" \
     --add-entry="Fin — seg de duración, o HH:MM:SS (hasta el final)" \
     --add-entry="FPS (${DEF_FPS})" \
     --add-entry="Ancho px (${DEF_W}, 'max' = ${orig_w})" \
+    --add-entry="Alto px para recortar (full, 'max' = ${orig_h})" \
+    --add-combo="Recortar alto desde" --combo-values="center|top|bottom" \
     --add-entry="Calidad 1-100 (${DEF_Q})" \
     --add-combo="Pixelar caras" --combo-values="No|Sí (mosaic)" \
+    --add-combo="Modelo (si pixelás)" --combo-values="SCRFD (balance · default)|RetinaFace-R34 (máx. precisión · lento)|CenterFace (rápido)" \
+    --add-combo="Rellenar gaps (si pixelás)" --combo-values="Sí|No" \
     --separator="|" \
-    --width=520 --height=508)
+    --width=540 --height=696)
 
 [ -z "$values" ] && exit 0
 
-IFS='|' read -r START END FPS WIDTH QUALITY PIXELATE_CHOICE <<< "$values"
+IFS='|' read -r START END FPS WIDTH CROP_HEIGHT CROP_Y QUALITY PIXELATE_CHOICE PIXELATE_MODEL PIXELATE_FILL <<< "$values"
 PIXELATE=0
 [[ "$PIXELATE_CHOICE" == "Sí (mosaic)" ]] && PIXELATE=1
 
@@ -84,18 +88,17 @@ case "${WIDTH,,}" in
     max|full|-1|100%|original) WIDTH="$orig_w" ;;
 esac
 
-# Output path (único si ya existe)
+# Alto "max"/"full"/vacío → sin crop
+case "${CROP_HEIGHT,,}" in
+    ""|max|full|original|"${orig_h}") CROP_HEIGHT="" ;;
+esac
+CROP_Y="${CROP_Y:-center}"
+
 parent=$(dirname "$src")
-stem=$(basename "${src%.*}")
-out="$parent/${stem}.gif"
-n=2
-while [[ -f "$out" ]]; do
-    out="$parent/${stem}_${n}.gif"
-    n=$((n+1))
-done
 
 # Build args — si END tiene ':' es un timestamp → --to, si no es duración en seg → --duration
-args=(--start "$START" --fps "$FPS" --width "$WIDTH" --quality "$QUALITY" -o "$out")
+# El motor genera el nombre con rango temporal cuando corresponde; no pasamos -o.
+args=(--start "$START" --fps "$FPS" --width "$WIDTH" --quality "$QUALITY")
 if [[ -n "$END" ]]; then
     if [[ "$END" == *:* ]]; then
         args+=(--to "$END")
@@ -103,7 +106,18 @@ if [[ -n "$END" ]]; then
         args+=(--duration "$END")
     fi
 fi
-[[ "$PIXELATE" == "1" ]] && args+=(--pixelate-faces)
+if [[ -n "$CROP_HEIGHT" ]]; then
+    args+=(--crop-height "$CROP_HEIGHT" --crop-y "$CROP_Y")
+fi
+if [[ "$PIXELATE" == "1" ]]; then
+    args+=(--pixelate-faces)
+    case "$PIXELATE_MODEL" in
+        "CenterFace (rápido)") args+=(--pixelate-model centerface) ;;
+        "RetinaFace-R34 (máx. precisión · lento)") args+=(--pixelate-model retinaface) ;;
+        *) args+=(--pixelate-model scrfd) ;;
+    esac
+    [[ "$PIXELATE_FILL" == "No" ]] && args+=(--no-pixelate-fill-gaps)
+fi
 
 LOG=/tmp/video2gif.log
 : > "$LOG"
@@ -142,7 +156,10 @@ EXIT=${PIPESTATUS[0]}
 
 pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
 
-if [[ $EXIT -ne 0 || ! -f "$out" ]]; then
+# Motor imprime `✓ /abs/path  (XXX KB)` al final
+out=$(grep -oE '^✓ /[^ ]+' "$LOG" | tail -1 | sed 's/^✓ //')
+
+if [[ $EXIT -ne 0 || -z "$out" || ! -f "$out" ]]; then
     err=$(tail -5 "$LOG")
     zenity --error --title="Video → GIF — falló" --text="$err" --width=500
     exit 1
