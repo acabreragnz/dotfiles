@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# Recorta un video o GIF desde los 4 bordes (px o %) usando ~/scripts/crop.py.
+
+export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+SCRIPT="$HOME/scripts/crop.py"
+VIDEO_EXTS="mp4|mov|mkv|webm|avi|m4v|gif"
+
+mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+files=()
+for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
+
+if [ ${#files[@]} -eq 0 ]; then
+    zenity --error --text="No se recibieron archivos." --title="Crop"
+    exit 1
+fi
+if [ ${#files[@]} -gt 1 ]; then
+    zenity --error --text="Seleccioná un único archivo." --title="Crop"
+    exit 1
+fi
+
+src="${files[0]}"
+ext="${src##*.}"
+if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
+    zenity --error --text="Formato no soportado. Usá: ${VIDEO_EXTS//|/, }" --title="Crop"
+    exit 1
+fi
+
+dims=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$src" 2>/dev/null)
+orig_w=$(echo "$dims" | cut -dx -f1)
+orig_h=$(echo "$dims" | cut -dx -f2)
+
+values=$(zenity --forms \
+    --title="Crop" \
+    --text="Archivo: $(basename "$src")\nOriginal: ${orig_w}×${orig_h} px\n\nCada borde acepta px o % (ej: 40 o 10%). Vacío = 0.\n" \
+    --add-entry="Izquierda (0)" \
+    --add-entry="Derecha (0)" \
+    --add-entry="Arriba (0)" \
+    --add-entry="Abajo (0)" \
+    --separator="|" \
+    --width=460 --height=420)
+
+[ -z "$values" ] && exit 0
+
+IFS='|' read -r LEFT RIGHT TOP BOTTOM <<< "$values"
+LEFT="${LEFT:-0}"; RIGHT="${RIGHT:-0}"; TOP="${TOP:-0}"; BOTTOM="${BOTTOM:-0}"
+
+if [[ "$LEFT" == "0" && "$RIGHT" == "0" && "$TOP" == "0" && "$BOTTOM" == "0" ]]; then
+    zenity --error --text="Especificá al menos un borde." --title="Crop"
+    exit 1
+fi
+
+parent=$(dirname "$src")
+
+LOG=/tmp/crop.log
+: > "$LOG"
+
+(
+    echo "10"
+    echo "# Recortando..."
+    # El motor nombra el output con las dims finales (ej: _cropped_1536x1080)
+    python3 "$SCRIPT" "$src" --left "$LEFT" --right "$RIGHT" --top "$TOP" --bottom "$BOTTOM" >>"$LOG" 2>&1 &
+    PID=$!
+    while kill -0 "$PID" 2>/dev/null; do
+        echo "50"
+        sleep 0.5
+    done
+    wait "$PID"
+    rc=$?
+    echo "100"
+    [[ $rc -eq 0 ]] && echo "# Listo" || echo "# Error (ver $LOG)"
+    exit $rc
+) | zenity --progress \
+    --title="Crop..." \
+    --text="Procesando..." \
+    --percentage=0 --auto-close --width=400
+
+EXIT=${PIPESTATUS[0]}
+
+pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+
+# Motor imprime `✓ /abs/path  (XXX KB)` al final
+out=$(grep -oE '^✓ /[^ ]+' "$LOG" | tail -1 | sed 's/^✓ //')
+
+if [[ $EXIT -ne 0 || -z "$out" || ! -f "$out" ]]; then
+    err=$(tail -5 "$LOG")
+    zenity --error --title="Crop — falló" --text="$err" --width=500
+    exit 1
+fi
+
+size_kb=$(( $(stat -c%s "$out") / 1024 ))
+out_dims=$(ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0:s=x "$out" 2>/dev/null)
+action=$(notify-send --wait --action="open=Abrir carpeta" \
+    "Crop listo" "$(basename "$out") — ${out_dims} · ${size_kb} KB" --icon=edit-cut)
+[[ "$action" == "open" ]] && nautilus "$parent" 2>/dev/null &

@@ -53,7 +53,11 @@ def main():
 
     total = len(images)
     for i, src in enumerate(images, 1):
-        dst = out_dir / src.name
+        # Si sobreescribe el mismo dir, mantiene el nombre original para no duplicar
+        if out_dir == src_dir:
+            dst = out_dir / src.name
+        else:
+            dst = out_dir / f"{src.stem}_rotado_{args.angle}{src.suffix}"
         mtime = effective_mtime(src)
         img = Image.open(src)
         img.rotate(args.angle, expand=True).save(dst, quality=args.quality)

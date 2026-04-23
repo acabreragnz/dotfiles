@@ -47,14 +47,25 @@ case "$angulo" in
     270) vf="transpose=2" ;;
 esac
 
+single_mode=0
+[ ${#files[@]} -eq 1 ] && single_mode=1
+
 declare -a output_dirs=()
 declare -a output_files=()
 for file in "${files[@]}"; do
     dir=$(dirname "$file")
     stem=$(basename "${file%.*}")
-    outdir=$(get_unique_dir "$dir/${stem}_rotado")
-    output_dirs+=("$outdir")
-    output_files+=("$outdir/${stem}_rotado.mp4")
+    if [[ $single_mode -eq 1 ]]; then
+        out="$dir/${stem}_rotado_${angulo}.mp4"
+        n=2
+        while [[ -f "$out" ]]; do out="$dir/${stem}_rotado_${angulo}_${n}.mp4"; n=$((n+1)); done
+        output_dirs+=("$dir")
+        output_files+=("$out")
+    else
+        outdir=$(get_unique_dir "$dir/${stem}_rotado_${angulo}")
+        output_dirs+=("$outdir")
+        output_files+=("$outdir/${stem}_rotado_${angulo}.mp4")
+    fi
 done
 
 PID_FILE=$(mktemp)
@@ -81,7 +92,7 @@ PID_FILE=$(mktemp)
             *)     vcodec="libx264";    quality_flags=(-crf 15 -preset slow) ; pix_fmt=(-pix_fmt yuv420p) ;;
         esac
 
-        mkdir -p "$outdir"
+        [[ $single_mode -eq 0 ]] && mkdir -p "$outdir"
         ffmpeg -y -i "$file" -vf "$vf" -c:v "$vcodec" "${quality_flags[@]}" "${pix_fmt[@]}" \
                -c:a copy -map_metadata 0 -metadata:s:v:0 rotate=0 "$out" 2>/dev/null &
         echo $! > "$PID_FILE"

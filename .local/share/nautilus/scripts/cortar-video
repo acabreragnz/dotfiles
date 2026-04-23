@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# Corta un tramo de video seleccionado en Nautilus (via ~/scripts/video_cut.py).
+# Default: stream copy (sin pérdida, corte al keyframe más cercano).
+# Opcional: --precise re-encodea para corte exacto al frame.
+
+export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+SCRIPT="$HOME/scripts/video_cut.py"
+VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v|flv|wmv"
+
+mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
+files=()
+for f in "${_raw[@]}"; do [[ -n "$f" ]] && files+=("$f"); done
+
+if [ ${#files[@]} -eq 0 ]; then
+    zenity --error --text="No se recibieron archivos." --title="Cortar video"
+    exit 1
+fi
+
+if [ ${#files[@]} -gt 1 ]; then
+    zenity --error --text="Seleccioná un único video." --title="Cortar video"
+    exit 1
+fi
+
+src="${files[0]}"
+ext="${src##*.}"
+if ! echo "${ext,,}" | grep -qE "^($VIDEO_EXTS)$"; then
+    zenity --error --text="Formato no soportado. Usá: ${VIDEO_EXTS//|/, }" --title="Cortar video"
+    exit 1
+fi
+
+# Metadata del video
+duration_total=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$src" 2>/dev/null | awk '{printf "%.1f", $1}')
+codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$src" 2>/dev/null)
+hms=$(awk -v s="$duration_total" 'BEGIN{h=int(s/3600); m=int((s%3600)/60); sec=int(s%60); printf "%02d:%02d:%02d", h, m, sec}')
+
+values=$(zenity --forms \
+    --title="Cortar video" \
+    --text="Archivo: $(basename "$src")\nDuración: ${duration_total}s (${hms})   ·   Códec: ${codec}\n\nInicio/Fin aceptan segundos o HH:MM:SS. En 'Fin' sin ':' se interpreta como duración en seg.\n" \
+    --add-entry="Inicio — seg o HH:MM:SS (0)" \
+    --add-entry="Fin — HH:MM:SS (timestamp) o seg (duración)" \
+    --add-combo="Precisión" --combo-values="Sin pérdida (al keyframe)|Exacto (re-encode)" \
+    --separator="|" \
+    --width=560 --height=372)
+
+[ -z "$values" ] && exit 0
+
+IFS='|' read -r START END PRECISION <<< "$values"
+START="${START:-0}"
+
+# Args al motor (sin -o: el motor genera el nombre con rango temporal)
+args=(--start "$START")
+if [[ -n "$END" ]]; then
+    if [[ "$END" == *:* ]]; then
+        args+=(--to "$END")
+    else
+        args+=(--duration "$END")
+    fi
+fi
+[[ "$PRECISION" == "Exacto (re-encode)" ]] && args+=(--precise)
+
+parent=$(dirname "$src")
+LOG=/tmp/video_cut.log
+: > "$LOG"
+
+(
+    echo "10"
+    if [[ "$PRECISION" == "Exacto (re-encode)" ]]; then
+        echo "# Re-encodeando (puede tardar)..."
+    else
+        echo "# Cortando (stream copy)..."
+    fi
+    "$SCRIPT" "$src" "${args[@]}" >>"$LOG" 2>&1 &
+    PID=$!
+    while kill -0 "$PID" 2>/dev/null; do
+        sleep 0.5
+    done
+    wait "$PID"
+    rc=$?
+    echo "100"
+    if [[ $rc -eq 0 ]]; then
+        echo "# Listo"
+    else
+        echo "# Error (ver $LOG)"
+    fi
+    exit $rc
+) | zenity --progress \
+    --title="Cortando video..." \
+    --text="Iniciando..." \
+    --percentage=0 --auto-close --width=400 --pulsate
+
+EXIT=${PIPESTATUS[0]}
+
+pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+
+# El motor imprime `✓ /abs/path  (X.X MB)` al final
+out=$(grep -oE '^✓ /[^ ]+' "$LOG" | tail -1 | sed 's/^✓ //')
+
+if [[ $EXIT -ne 0 || -z "$out" || ! -f "$out" ]]; then
+    err=$(tail -8 "$LOG")
+    zenity --error --title="Cortar video — falló" --text="$err" --width=520
+    exit 1
+fi
+
+size_mb=$(awk -v b="$(stat -c%s "$out")" 'BEGIN{printf "%.1f", b/1048576}')
+action=$(notify-send --wait --action="open=Abrir carpeta" \
+    "Video cortado" "$(basename "$out") — ${size_mb} MB" --icon=emblem-videos)
+[[ "$action" == "open" ]] && nautilus "$parent" 2>/dev/null &
