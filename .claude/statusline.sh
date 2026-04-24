@@ -120,8 +120,8 @@ if [ -n "$SEVEN_DAY_PCT" ]; then
     RATE_LIMITS_LINE="${RATE_LIMITS_LINE}7d: ${SEVEN_DAY_FMT}%${SEVEN_DAY_COUNTDOWN}"
 fi
 
-# Effort level from settings.json
-EFFORT_LEVEL=$(jq -r '.effortLevel // empty' ~/.claude/settings.json 2>/dev/null)
+# Effort level from session JSON (reflects current /effort, not settings.json)
+EFFORT_LEVEL=$(echo "$input" | jq -r '.effort.level // empty')
 
 # Output style + effort label
 EFFORT_LABEL=""
