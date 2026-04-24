@@ -29,6 +29,14 @@ from pathlib import Path
 from datetime import datetime
 from io import BytesIO
 
+# Cap threads ANTES de importar numpy/cv2 para evitar que BLAS/OpenMP saturen
+# todos los cores. Este proceso + ffmpeg (decoder + encoder) + ffprobe
+# fácilmente se suben a 10+ cores sin control.
+_THREAD_CAP = os.environ.get("VIDEO_SCRIPTS_THREADS", "4")
+for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+           "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "OMP_THREAD_LIMIT"):
+    os.environ.setdefault(_v, _THREAD_CAP)
+
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from tqdm import tqdm
@@ -193,7 +201,7 @@ def stream_frames(video_path: str, fps: float | None, rotation: int = 0, max_wid
     _, _, _, in_w, in_h = get_video_info(video_path)
     out_w, out_h = compute_output_dims(in_w, in_h, rotation, max_width)
 
-    cmd = ["ffmpeg", "-noautorotate"]
+    cmd = ["ffmpeg", "-noautorotate", "-threads", _THREAD_CAP]
     if start > 2.0:
         # hybrid: fast input-seek cerca del start, luego output-seek los últimos 2s
         fast = start - 2.0
@@ -247,6 +255,10 @@ def _ensure_cv2():
     if DEFACE_SITE not in sys.path:
         sys.path.insert(0, DEFACE_SITE)
     import cv2
+    try:
+        cv2.setNumThreads(int(_THREAD_CAP))
+    except Exception:
+        pass
     return cv2
 
 
@@ -260,6 +272,7 @@ def motion_scan(
     min_solidity: float = 0.3,
     max_fragments: int = 30,
     min_active_pct: float = 0.05,
+    strong_blob_pct: float = 2.0,
     warmup_frames: int = 4,
     history: int = 500,
     var_threshold: float = 30.0,
@@ -343,6 +356,15 @@ def motion_scan(
             hull_area = cv2.contourArea(cv2.convexHull(big))
             solidity = max_area / max(hull_area, 1.0)
             if solidity < min_solidity:
+                prev_gray = gray
+                continue
+
+            # Strong-blob bypass: si el blob es grande (≥ strong_blob_pct),
+            # es presencia clara de un objeto — keep aunque frame-a-frame no
+            # haya cambio (persona quieta pero visible). Evita que una persona
+            # agachándose lentamente se descarte por falta de active-motion.
+            if max_pct >= strong_blob_pct:
+                detected.append(ts)
                 prev_gray = gray
                 continue
 
@@ -541,6 +563,134 @@ def save_range_previews(
             img.save(dest, quality=92)
 
 
+def save_ranges_video(
+    video_path: str,
+    output_path: Path,
+    ranges: list[tuple[float, float]],
+    rotation: int,
+    max_width: int,
+    real_fps: float,
+) -> None:
+    """Concatena los rangos activos a un solo mp4 con label overlay por frame.
+
+    Pipeline: ffmpeg decode+select → rawvideo stdin → Python PIL label → rawvideo
+    stdout → ffmpeg encode. Sin audio (cada rango necesitaría re-timestampear).
+    """
+    _, _, _, in_w, in_h = get_video_info(video_path)
+    out_w, out_h = compute_output_dims(in_w, in_h, rotation, max_width)
+
+    select_expr = "+".join(f"between(t,{s:.3f},{e:.3f})" for s, e in ranges)
+    vf = (
+        f"select='{select_expr}',setpts=N/({real_fps}*TB)," +
+        _build_vf(None, rotation, max_width)
+    ).rstrip(",")
+
+    decoder_cmd = [
+        "ffmpeg", "-noautorotate", "-hide_banner", "-loglevel", "error",
+        "-threads", _THREAD_CAP,
+        "-i", video_path,
+        "-vf", vf,
+        "-an",
+        "-f", "rawvideo", "-pix_fmt", "rgb24", "-",
+    ]
+    encoder_cmd = [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+        "-f", "rawvideo", "-pix_fmt", "rgb24",
+        "-s", f"{out_w}x{out_h}", "-r", f"{real_fps}",
+        "-i", "-",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        "-threads", _THREAD_CAP,
+        "-pix_fmt", "yuv420p",
+        str(output_path),
+    ]
+
+    decoder = subprocess.Popen(decoder_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    encoder = subprocess.Popen(encoder_cmd, stdin=subprocess.PIPE, stderr=subprocess.DEVNULL)
+
+    frame_bytes = out_w * out_h * 3
+    frame_idx = 0
+    cum_durations = []
+    cum = 0.0
+    for s, e in ranges:
+        cum += e - s
+        cum_durations.append(cum)
+
+    def range_and_original_ts(output_t: float) -> tuple[int, float]:
+        for i, (s, e) in enumerate(ranges):
+            prev_cum = cum_durations[i - 1] if i > 0 else 0.0
+            if output_t < cum_durations[i]:
+                return i + 1, s + (output_t - prev_cum)
+        i = len(ranges)
+        s, e = ranges[-1]
+        return i, e
+
+    try:
+        with tqdm(desc="Encoding highlights", unit="frame") as pbar:
+            while True:
+                chunks: list[bytes] = []
+                remaining = frame_bytes
+                while remaining > 0:
+                    chunk = decoder.stdout.read(remaining)
+                    if not chunk:
+                        break
+                    chunks.append(chunk)
+                    remaining -= len(chunk)
+                if remaining > 0:
+                    break
+                data = chunks[0] if len(chunks) == 1 else b"".join(chunks)
+                frame = np.frombuffer(data, np.uint8).reshape(out_h, out_w, 3).copy()
+
+                output_t = frame_idx / real_fps
+                rng_idx, orig_t = range_and_original_ts(output_t)
+                mm = int(orig_t // 60)
+                ss = orig_t % 60
+                label = f"R{rng_idx:02d}  orig {mm:02d}:{ss:05.2f}"
+                img = _draw_label(Image.fromarray(frame), label)
+                encoder.stdin.write(np.asarray(img).tobytes())
+                frame_idx += 1
+                pbar.update(1)
+    finally:
+        if encoder.stdin:
+            encoder.stdin.close()
+        decoder.wait()
+        encoder.wait()
+
+    # Merge audio de los mismos rangos (si el source tiene audio)
+    probe = subprocess.run(
+        ["ffprobe", "-v", "quiet", "-select_streams", "a:0",
+         "-show_entries", "stream=codec_type", "-of", "default=nw=1:nk=1", video_path],
+        capture_output=True, text=True
+    )
+    if probe.stdout.strip() == "audio":
+        print("Merging concatenated audio...")
+        video_only = output_path.with_suffix(".video_only.mp4")
+        output_path.rename(video_only)
+        audio_expr = "+".join(f"between(t,{s:.3f},{e:.3f})" for s, e in ranges)
+        audio_tmp = output_path.with_suffix(".audio_only.m4a")
+        subprocess.run([
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+            "-threads", _THREAD_CAP,
+            "-i", video_path,
+            "-af", f"aselect='{audio_expr}',asetpts=N/SR/TB",
+            "-vn", "-c:a", "aac", "-b:a", "128k",
+            str(audio_tmp),
+        ], check=False)
+        if audio_tmp.exists():
+            subprocess.run([
+                "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
+                "-threads", _THREAD_CAP,
+                "-i", str(video_only), "-i", str(audio_tmp),
+                "-c:v", "copy", "-c:a", "copy",
+                "-map", "0:v:0", "-map", "1:a:0",
+                "-shortest",
+                str(output_path),
+            ], check=False)
+            video_only.unlink(missing_ok=True)
+            audio_tmp.unlink(missing_ok=True)
+        else:
+            video_only.rename(output_path)  # fallback
+
+
 def smart_process(
     video_path: str,
     output_dir: str,
@@ -550,6 +700,7 @@ def smart_process(
     uniform_pct: float,
     min_solidity: float,
     min_active_pct: float,
+    strong_blob_pct: float,
     gap: float,
     pad: float,
     force_rotate: int | None,
@@ -559,6 +710,7 @@ def smart_process(
     by_minute: bool = True,
     history: int = 500,
     var_threshold: float = 30.0,
+    video_only: bool = False,
 ) -> int:
     """Pass 1: scan MOG2 → rangos. Pass 2: full-fps extraction en cada rango."""
     duration, rotation, real_fps, _, _ = get_video_info(video_path)
@@ -580,6 +732,7 @@ def smart_process(
         uniform_pct=uniform_pct,
         min_solidity=min_solidity,
         min_active_pct=min_active_pct,
+        strong_blob_pct=strong_blob_pct,
         history=history,
         var_threshold=var_threshold,
     )
@@ -604,6 +757,15 @@ def smart_process(
     save_range_previews(
         video_path, Path(output_dir) / "_ranges_preview", ranges, rotation, max_width
     )
+
+    if video_only:
+        video_path_out = Path(output_dir) / f"{Path(video_path).stem}_highlights.mp4"
+        print(f"Pass 2: concatenating ranges to single video with labels...")
+        save_ranges_video(
+            video_path, video_path_out, ranges, rotation, max_width, real_fps
+        )
+        print(f"\nSaved highlights video: {video_path_out}")
+        return 0
 
     print("Pass 2: extracting full-fps frames within ranges...")
 
@@ -690,14 +852,18 @@ def main():
                         help="[smart] Solidez mínima del blob (área/hull_area). Descarta streaks elongados de ruido. 0.3 tolera bastante; subir a 0.5 para ser más estricto (default: 0.3)")
     parser.add_argument("--min-active-pct", type=float, default=0.05,
                         help="[smart] %% mínimo del blob CONTIGUO más grande de cambio frame-a-frame. Filtra vibraciones (muchos edges dispersos) y colas post-motion (MOG2 aún absorbiendo nuevo fondo). 0.05 ≈ 65px a 480×270. Subir a 0.2 para rechazar movimientos muy chicos (default: 0.05)")
+    parser.add_argument("--strong-blob-pct", type=float, default=2.0,
+                        help="[smart] Si el blob MOG2 es ≥ este %%, bypassea el filtro de active-motion (presencia clara aunque no se mueva). Evita cortar cuando una persona queda quieta en escena (default: 2.0)")
     parser.add_argument("--history", type=int, default=500,
                         help="[smart] Frames de historia del modelo de fondo MOG2. Más alto = los micro-movimientos se absorben antes (default: 500 ≈ 125s a 4fps)")
     parser.add_argument("--var-threshold", type=float, default=30.0,
                         help="[smart] Umbral de varianza MOG2 por pixel. Más alto = menos sensible a cambios chicos de intensidad (default: 30). OpenCV default es 16 pero es muy sensible para escenas con respiración/iluminación sutil")
+    parser.add_argument("--video-only", action="store_true",
+                        help="[smart] En lugar de extraer frames, produce un solo mp4 concatenando los rangos activos con label de tiempo original")
     parser.add_argument("--gap", type=float, default=5.0,
                         help="[smart] Máximo segundos entre detecciones para seguir en el mismo rango (default: 5)")
-    parser.add_argument("--pad", type=float, default=1.0,
-                        help="[smart] Segundos de padding a cada lado del rango (default: 1)")
+    parser.add_argument("--pad", type=float, default=3.0,
+                        help="[smart] Segundos de padding a cada lado del rango (default: 3). Más alto captura mejor las continuaciones lentas (persona agachándose) a costa de algunos frames vacíos al borde")
 
     args = parser.parse_args()
 
@@ -724,15 +890,17 @@ def main():
             uniform_pct=args.uniform_pct,
             min_solidity=args.min_solidity,
             min_active_pct=args.min_active_pct,
+            strong_blob_pct=args.strong_blob_pct,
             gap=args.gap,
             pad=args.pad,
             force_rotate=args.rotate,
             max_width=args.max_width,
             pixelize=args.pixelize,
             date_overlay=not args.no_date,
-            by_minute=not args.no_group,
+            by_minute=False,
             history=args.history,
             var_threshold=args.var_threshold,
+            video_only=args.video_only,
         )
     else:
         captured = process(

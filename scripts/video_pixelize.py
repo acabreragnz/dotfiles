@@ -25,6 +25,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+# Cap threads ANTES de importar numpy/onnxruntime/cv2 para evitar que saturen
+# todos los cores (onnxruntime + BLAS suman 8+ cores sin esto).
+_THREAD_CAP = os.environ.get("VIDEO_SCRIPTS_THREADS", "4")
+for _v in ("OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS",
+           "NUMEXPR_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "OMP_THREAD_LIMIT"):
+    os.environ.setdefault(_v, _THREAD_CAP)
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from filename_date import effective_mtime  # noqa: E402
 
@@ -77,7 +84,7 @@ def encode_flags(codec: str) -> tuple[list[str], list[str], str]:
             return (["-c:v", "libvpx-vp9", "-crf", "20", "-b:v", "0"],
                     ["-pix_fmt", "yuv420p"], ".webm")
         case _:
-            return (["-c:v", "libx264", "-crf", "18", "-preset", "slow"],
+            return (["-c:v", "libx264", "-crf", "20", "-preset", "veryfast"],
                     ["-pix_fmt", "yuv420p"], ".mp4")
 
 
@@ -281,7 +288,7 @@ def main() -> None:
             audio_args = ["-map", "0:v", "-map", "1:a?", "-c:a", "copy"]
 
         ff_enc += audio_args + vcodec_args + pix_fmt_args
-        ff_enc += ["-metadata:s:v:0", "rotate=0", str(out)]
+        ff_enc += ["-threads", _THREAD_CAP, "-metadata:s:v:0", "rotate=0", str(out)]
 
         run(ff_enc)
 

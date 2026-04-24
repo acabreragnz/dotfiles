@@ -6,6 +6,7 @@
 export PATH="/home/linuxbrew/.linuxbrew/bin:/home/tcabrera/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 SCRIPT="$HOME/scripts/video_trim.py"
+SMART_SCRIPT="$HOME/scripts/video_capture.py"
 VIDEO_EXTS="mp4|mkv|avi|mov|webm|m4v|flv|wmv"
 
 mapfile -t _raw <<< "$NAUTILUS_SCRIPT_SELECTED_FILE_PATHS"
@@ -33,6 +34,53 @@ fi
 duration_total=$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$src" 2>/dev/null | awk '{printf "%.1f", $1}')
 codec=$(ffprobe -v error -select_streams v:0 -show_entries stream=codec_name -of default=nw=1:nk=1 "$src" 2>/dev/null)
 hms=$(awk -v s="$duration_total" 'BEGIN{h=int(s/3600); m=int((s%3600)/60); sec=int(s%60); printf "%02d:%02d:%02d", h, m, sec}')
+
+mode=$(zenity --list \
+    --title="Trim video — mode" \
+    --text="File: $(basename "$src") — ${hms}\n\nPick mode:" \
+    --radiolist \
+    --column="" --column="Mode" --column="Description" \
+    --print-column=2 \
+    TRUE  "manual" "Manual range — you set start/end" \
+    FALSE "smart"  "Smart highlights — auto-detect active zones (MOG2)" \
+    --width=620 --height=420)
+
+[ -z "$mode" ] && exit 0
+
+if [[ "$mode" == "smart" ]]; then
+    parent=$(dirname "$src")
+    stem="${src##*/}"; stem="${stem%.*}"
+    out_dir="$parent/${stem}_highlights"
+    LOG=/tmp/video_highlights.log
+    : > "$LOG"
+    (
+        echo "5"
+        echo "# Pass 1: scanning for active zones..."
+        python3 "$SMART_SCRIPT" "$src" smart --video-only --output "$out_dir" >>"$LOG" 2>&1 &
+        PID=$!
+        while kill -0 "$PID" 2>/dev/null; do sleep 1; done
+        wait "$PID"; rc=$?
+        echo "100"
+        [[ $rc -eq 0 ]] && echo "# Done" || echo "# Error (see $LOG)"
+        exit $rc
+    ) | zenity --progress \
+        --title="Smart highlights..." \
+        --text="Scanning + encoding..." \
+        --percentage=0 --auto-close --width=420 --pulsate
+    EXIT=${PIPESTATUS[0]}
+    pw-play /usr/share/sounds/freedesktop/stereo/message.oga 2>/dev/null
+    out="$out_dir/${stem}_highlights.mp4"
+    if [[ $EXIT -ne 0 || ! -f "$out" ]]; then
+        err=$(tail -10 "$LOG")
+        zenity --error --title="Smart highlights — failed" --text="$err" --width=520
+        exit 1
+    fi
+    size_mb=$(awk -v b="$(stat -c%s "$out")" 'BEGIN{printf "%.1f", b/1048576}')
+    action=$(notify-send --wait --action="open=Open folder" \
+        "Smart highlights ready" "$(basename "$out") — ${size_mb} MB" --icon=emblem-videos)
+    [[ "$action" == "open" ]] && nautilus "$out_dir" 2>/dev/null &
+    exit 0
+fi
 
 values=$(zenity --forms \
     --title="Trim video" \
