@@ -28,10 +28,11 @@ mode=$(zenity --list \
     --radiolist \
     --column="" --column="Mode" --column="Description" \
     --print-column=2 \
-    TRUE  "medium" "Significant motion (4 FPS) — recommended" \
+    TRUE  "smart"  "Auto-detect active zones (MOG2) + full FPS inside — recommended" \
+    FALSE "medium" "Significant motion (4 FPS)" \
     FALSE "full"   "All frames (video's real FPS)" \
     FALSE "low"    "Only big changes (2 FPS)" \
-    --width=580 --height=300)
+    --width=640 --height=560)
 
 [ -z "$mode" ] && exit 0
 
@@ -62,6 +63,23 @@ if [[ "$mode" == "full" ]]; then
             --text="Full mode will generate approximately <b>$total_frames frames</b>.\nContinue?" \
             --ok-label="Continue" --cancel-label="Cancel" 2>/dev/null || exit 0
     fi
+fi
+
+# ── Info for smart mode ───────────────────────────────────────────────────────
+if [[ "$mode" == "smart" ]]; then
+    total_dur=0
+    for file in "${files[@]}"; do
+        dur=$(ffprobe -v quiet -select_streams v:0 \
+            -show_entries stream=duration \
+            -of default=noprint_wrappers=1:nokey=1 "$file" 2>/dev/null | awk '{print int($1+0.5)}')
+        total_dur=$(( total_dur + dur ))
+    done
+    est_min=$(( total_dur / 60 / 5 ))  # rough: ~5x realtime for scan
+    [[ $est_min -lt 1 ]] && est_min=1
+    zenity --question \
+        --title="Extract frames — smart mode" \
+        --text="Smart mode: first scans the full video with MOG2 to find active zones, then extracts all frames inside those zones.\n\nThe scan output does NOT appear until it finishes (~${est_min} min for ${total_dur}s of video).\n\nContinue?" \
+        --ok-label="Continue" --cancel-label="Cancel" 2>/dev/null || exit 0
 fi
 
 # ── Output dirs ───────────────────────────────────────────────────────────────
