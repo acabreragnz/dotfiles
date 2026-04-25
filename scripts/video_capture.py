@@ -598,7 +598,7 @@ def save_ranges_video(
         "-f", "rawvideo", "-pix_fmt", "rgb24",
         "-s", f"{out_w}x{out_h}", "-r", f"{real_fps}",
         "-i", "-",
-        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+        "-c:v", "libx264", "-preset", "slow", "-crf", "15",
         "-threads", _THREAD_CAP,
         "-pix_fmt", "yuv420p",
         str(output_path),

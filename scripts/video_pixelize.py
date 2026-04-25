@@ -79,12 +79,12 @@ def encode_flags(codec: str) -> tuple[list[str], list[str], str]:
         case "mjpeg":
             return (["-c:v", "mjpeg", "-q:v", "2"], [], ".avi")
         case "hevc" | "h265":
-            return (["-c:v", "libx265", "-crf", "18"], ["-pix_fmt", "yuv420p"], ".mp4")
+            return (["-c:v", "libx265", "-crf", "15"], ["-pix_fmt", "yuv420p"], ".mp4")
         case "vp9":
-            return (["-c:v", "libvpx-vp9", "-crf", "20", "-b:v", "0"],
+            return (["-c:v", "libvpx-vp9", "-crf", "18", "-b:v", "0"],
                     ["-pix_fmt", "yuv420p"], ".webm")
         case _:
-            return (["-c:v", "libx264", "-crf", "20", "-preset", "veryfast"],
+            return (["-c:v", "libx264", "-crf", "15", "-preset", "slow"],
                     ["-pix_fmt", "yuv420p"], ".mp4")
 
 
