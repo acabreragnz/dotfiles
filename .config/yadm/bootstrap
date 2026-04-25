@@ -683,6 +683,19 @@ else
 fi
 
 # ==========================================
+# SECCIÓN: pip system packages (para ~/scripts/*)
+# ==========================================
+step "Instalando paquetes pip de sistema"
+# Requeridos por scripts en ~/scripts/ que usan `python3` directo
+# (video_capture.py, video2gif.py, video_pixelize.py)
+if ! python3 -c "import cv2" >/dev/null 2>&1; then
+  log "INFO" "Instalando opencv-python via pip3..."
+  pip3 install opencv-python --break-system-packages
+else
+  log "INFO" "opencv-python ya instalado"
+fi
+
+# ==========================================
 # SECCIÓN: npm globals
 # ==========================================
 step "Instalando paquetes npm globales"
