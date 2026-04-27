@@ -71,6 +71,35 @@ if [ -d "$CWD/.claude" ]; then
     echo "Copied .claude/ contents to worktree" >&2
 fi
 
+# Copy .agents/ into the worktree — not tracked by git, contains actual skill files
+# that .claude/skills/ symlinks point to via relative paths (../../.agents/skills/...)
+if [ -d "$CWD/.agents" ]; then
+    cp -r "$CWD/.agents" "$WORKTREE_PATH/.agents" 2>/dev/null || true
+    echo "Copied .agents/ contents to worktree" >&2
+fi
+
+# Self-heal broken skill symlinks: .claude/skills/<name> is tracked in git (so it's
+# always present after clone/checkout), but its target lives in .agents/skills/<name>
+# which is gitignored. If the target is ever deleted from the project root, every new
+# worktree inherits the broken symlink. Recover by scanning sibling worktrees for the
+# missing target, copying it back to root (so future worktrees get it too) and to
+# this worktree.
+if [ -d "$WORKTREE_PATH/.claude/skills" ]; then
+    for link in "$WORKTREE_PATH/.claude/skills"/*; do
+        [ -L "$link" ] || continue
+        [ -e "$link" ] && continue   # symlink resolves — fine
+        name=$(basename "$link")
+        for src in "$CWD/.claude/worktrees"/*/.agents/skills/"$name"; do
+            [ -d "$src" ] || continue
+            mkdir -p "$CWD/.agents/skills/$name" "$WORKTREE_PATH/.agents/skills/$name"
+            cp -r "$src"/. "$CWD/.agents/skills/$name/"
+            cp -r "$src"/. "$WORKTREE_PATH/.agents/skills/$name/"
+            echo "Self-healed missing skill '$name' from $src" >&2
+            break
+        done
+    done
+fi
+
 # Copy docs/tickets/ — gitignored so not checked out automatically
 if [ -d "$CWD/docs/tickets" ]; then
     cp -r "$CWD/docs/tickets" "$WORKTREE_PATH/docs/tickets" 2>/dev/null || true
