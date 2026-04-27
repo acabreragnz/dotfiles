@@ -24,6 +24,14 @@
 - **NUNCA modificar archivos multimedia in-place:** siempre generar un archivo de salida nuevo (ej: `archivo_out.mp4`, `archivo_cropped.png`). Nunca sobreescribir el original. El usuario decide qué hacer con el output.
 - **Verificar scripts antes de cerrar:** siempre que cree o modifique un script (Python, bash, Nautilus wrapper, etc.), ejecutarlo con un input real y validar el output antes de reportar que funciona. **Why:** entregar "✓ funciona" sin haberlo corrido rompe la confianza — ya pasó con `timestamp` + GIF y con `video_label.py` generando `.mp4` en vez de `.gif`. **How to apply:** Python CLI → correr con archivo de prueba y chequear con `ls`/`file`/`ffprobe`; bash wrapper zenity → `bash -n` + probar el camino no-interactivo invocando el script Python con los args esperados; si algún camino no se puede testear (ej: GUI sin display), decirlo explícitamente, no inventar el "funciona".
 
+# Scripts zsh interactivos (funciones, no utilities)
+
+- **Ubicación canónica:** `~/.zsh/<nombre>.zsh` — funciones zsh sourceables (e.g. `ccwt.zsh`). NO van en `~/.oh-my-zsh/custom/` porque oh-my-zsh es un repo git propio y yadm no puede trackear archivos adentro (los trata como submódulo y silenciosamente los ignora, incluso con `-f`).
+- **Auto-load por oh-my-zsh:** crear symlink `~/.oh-my-zsh/custom/<nombre>.zsh -> ~/.zsh/<nombre>.zsh`. Así oh-my-zsh los carga automático sin tocar `.zshrc`, y el archivo canónico vive afuera y es trackeable.
+- **Trackear con yadm:** `yadm add .zsh/<archivo>.zsh` → commit → push. NO trackear el symlink (`~/.oh-my-zsh/custom/...`) — solo el canónico en `~/.zsh/`.
+- **Diferencia con `~/scripts/`:** `~/scripts/` es para utilities ejecutables (Python, bash standalone) que se invocan como comandos. `~/.zsh/` es para funciones zsh que se cargan en el shell interactivo (definen funciones tipo `ccwt`, `cci`, etc.).
+- **PATH defensivo en funciones que llaman binarios del sistema:** si la función usa `command awk`, `command rm`, etc., agregar al inicio `local PATH="/usr/bin:/bin:$PATH"`. **Why:** sesiones heredadas de `cc` pueden tener un PATH sin `/usr/bin`, rompiendo `command not found` mid-función. **How to apply:** sólo en funciones que ejecutan utilities del sistema; no necesario para funciones que sólo llaman a builtins zsh.
+
 # Herramientas y Preferencias Técnicas
 
 - Preferir `jq` para parsear JSON en comandos `curl` simples. Usar `python3` solo si la lógica es compleja y `jq` se vuelve ilegible.
