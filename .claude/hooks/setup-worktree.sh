@@ -78,6 +78,15 @@ if [ -d "$CWD/.agents" ]; then
     echo "Copied .agents/ contents to worktree" >&2
 fi
 
+# Copy .gitignore from project root — root often has extra working-tree entries
+# (uncommitted ignores like .claude/settings.local.json, .agents/skills/*) that
+# the worktree's tracked version does not have. Keeping them in sync avoids
+# surprise tracked files in the worktree's git status.
+if [ -f "$CWD/.gitignore" ]; then
+    cp "$CWD/.gitignore" "$WORKTREE_PATH/.gitignore" 2>/dev/null || true
+    echo "Copied .gitignore from project root to worktree" >&2
+fi
+
 # Self-heal broken skill symlinks: .claude/skills/<name> is tracked in git (so it's
 # always present after clone/checkout), but its target lives in .agents/skills/<name>
 # which is gitignored. If the target is ever deleted from the project root, every new
