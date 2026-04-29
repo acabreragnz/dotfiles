@@ -154,6 +154,10 @@
 - **Antes de editar el body de cualquier PR**, siempre leer el contenido actual completo primero (e.g. `gh pr view --json body -q .body`). Hacer edits quirúrgicos — nunca reescribir secciones que no cambiaron, nunca pisar imágenes ni contenido que el usuario agregó.
 - **Después de cada `git push`**, si hay un PR abierto en esa branch, mostrar el link del PR al usuario (`gh pr view --json url -q .url`).
 
+# Sistemas externos — autorización explícita
+
+- **NUNCA crear, modificar, comentar, asignar, etiquetar, ni cambiar de estado nada en sistemas externos sin autorización explícita y específica del usuario.** Aplica a: Linear (issues, comentarios, proyectos, status), GitHub (PRs, issues, reviews, comentarios), Slack, Todoist, Google Workspace, cualquier MCP de un servicio externo. **Why:** una acción en un sistema externo es visible para terceros (compañeros, stakeholders) y suele ser difícil de revertir limpiamente; el daño reputacional y de coordinación es alto. Ya pasó: creé ENG-4743 sin pedir permiso después de proponer un plan en el que mencionaba "crear ticket follow-up" — el usuario interpretó el plan como discusión, no como autorización. **How to apply:** un plan o propuesta NO es autorización; "OK al plan" tampoco lo es para acciones externas a menos que el usuario haya aceptado explícitamente esa acción puntual. Antes de cada acción externa, parar y pedir luz verde puntual ("¿creo el ticket?", "¿comento el PR?"). Si la duda es si una acción cuenta como "externa", asumí que sí.
+
 # Dotfiles
 
 - Siempre que modifique un dotfile trackeado por yadm, ejecutar el flujo completo: `yadm add`, `yadm commit` y `yadm push`.
