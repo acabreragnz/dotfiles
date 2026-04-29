@@ -43,7 +43,7 @@ python3 ~/scripts/trim-screencast.py /tmp/<nombre>.webm /tmp/<nombre>-trimmed.we
 ```
 
 Tunables:
-- `--threshold` (default `0.05`) — subir a `0.10` para UIs ricas con animación de fondo (Lift, dashboards). Bajar a `0.02` si pierde animaciones sutiles.
+- `--threshold` (default `0.05`) — subir a `0.10` para UIs con animación de fondo permanente (loaders, pulsos, tooltips animados). Bajar a `0.02` si el trim pierde animaciones sutiles.
 - `--gap-frames` (default `30` ≈ 1.2s) — subir a 50-60 si hay texto que leer.
 
 ### Step 5 — Mostrar al usuario
@@ -60,6 +60,6 @@ Tunables:
 
 ## Troubleshooting
 
-- **`new_page` timeout en localhost:3001 → redirect a Auth0:** la sesión Auth0 no se hereda en tabs nuevas (third-party cookies bloqueadas en Chrome moderno). Pedir al usuario que haga login manualmente en la tab abierta y reintentar `navigate_page` con `timeout: 30000`.
+- **`new_page` timeout cuando la app redirige a un IdP (Auth0, SSO, etc.):** la sesión del proveedor de auth no siempre se hereda en tabs nuevas (third-party cookies bloqueadas por defecto en Chrome moderno). Pedir al usuario que haga login manualmente en la tab abierta y reintentar `navigate_page` a la URL real con `timeout: 30000`.
 - **Marker dibujado en (0,0):** un click programático `el.click()` no incluye coords. Usar siempre `mcp__chrome-devtools__click` (CDP `Input.dispatchMouseEvent`) — sí incluye `clientX/Y`.
 - **Trim recorta demasiado o muy poco:** ajustar `--threshold`. Si la UI tiene loaders/pulsos permanentes, sube el floor del MAD; subí el threshold por encima del floor (medirlo con `--keep-frames` y un script ad-hoc si hace falta).
