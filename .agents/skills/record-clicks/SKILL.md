@@ -1,6 +1,6 @@
 ---
 name: record-clicks
-description: Use when recording a browser flow as a short demo video — visible red rings on each click and dead time trimmed.
+description: Use when the user asks to record, screencast, or capture a browser flow with visible clicks — for QA evidence, bug reproductions, or demos. Triggers on "grabá los clicks", "registra mis clicks", "hacé un video del flujo", "screencast con clicks visibles", "capturá lo que clickeo", or any request to produce a video showing where clicks happen in a browser.
 argument-hint: 'URL inicial (o descripción del flujo)'
 ---
 
