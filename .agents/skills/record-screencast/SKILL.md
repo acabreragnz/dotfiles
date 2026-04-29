@@ -1,6 +1,6 @@
 ---
-name: record-clicks
-description: Use when the user asks to record, screencast, or capture a browser flow with visible clicks — for QA evidence, bug reproductions, or demos. Triggers on "grabá los clicks", "registra mis clicks", "hacé un video del flujo", "screencast con clicks visibles", "capturá lo que clickeo", or any request to produce a video showing where clicks happen in a browser.
+name: record-screencast
+description: Use when the user asks to record, screencast, or capture a browser interaction as a video — for QA evidence, bug reproductions, demos, or any time the user wants to *see* a browser flow play back. Trigger ANY time the user combines a browser action (click, navigate, interact) with words like "video", "screencast", "grabá", "grabámelo", "mostrámelo", "muestramelo", "filmá", "capturá", "registra". Concrete triggers: "hacé click en X y mostrámelo en video", "muestramelo en video", "grabá el flujo", "grabá los clicks", "registra mis clicks", "hacé un video de X", "screencast con clicks visibles", "capturá lo que clickeo", "filmá la interacción", "quiero verlo en video", "armame un video de X". If the user asks for a browser action AND mentions video/screencast/grabar/mostrar-en-video in the same request, use this skill — do NOT use chrome-devtools MCP tools directly.
 argument-hint: 'URL inicial (o descripción del flujo)'
 ---
 
@@ -24,7 +24,15 @@ Argumento:
 
 Leer `references/click-overlay.js` y ejecutar su contenido con `mcp__chrome-devtools__evaluate_script({pageId, function: <contenido>})`. Devuelve `'overlay-installed'` (o `'already-installed'`).
 
-Re-injectar después de cada `navigate_page` — el overlay se pierde en cada navegación.
+El overlay aporta tres elementos al video:
+- **Anillo rojo en cada click** (1s pulse, centrado en el coord del CDP).
+- **Banner grande bottom-center** con dos estados explícitos para evitar ambigüedad sobre si la URL es la actual o el destino:
+  - **Idle (`ON /current`)**: pill oscuro con label azul "ON" + path actual.
+  - **Navigating (`NAVIGATING /from → /to`)**: pill azul brillante con label amarillo "NAVIGATING" + URL anterior tachada + flecha animada + URL destino. Dura 1.8s y vuelve a idle con el path nuevo.
+  Reemplaza la barra del navegador, que el screencast del CDP no captura.
+- **Progress bar al tope** (gradient azul-amarillo) que corre 0→100% en ~800ms en cada navegación, simulando el indicador de carga del browser.
+
+Re-injectar después de cada `navigate_page` — el overlay se pierde en cada navegación. Las navegaciones SPA (clicks que cambian la ruta sin recargar) NO requieren re-inject; el banner se actualiza solo via polling cada 250ms.
 
 ### Step 3 — Grabar
 
