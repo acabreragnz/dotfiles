@@ -113,7 +113,9 @@ _ccwt_open_branch() {
   echo ""
   echo "  → creando worktree desde rama: $branch"
   [[ "$wt_name" != "$branch" ]] && echo "  → nombre worktree: $wt_name"
+  local wt_path="$_CCWT_PROJECT/.claude/worktrees/$wt_name"
   cd "$_CCWT_PROJECT" && cc --worktree "$wt_name"
+  [[ -d "$wt_path" ]] && cd "$wt_path"
 }
 
 # ── Main ────────────────────────────────────────────────────────
@@ -330,7 +332,9 @@ function _ccwt_create_new() {
 
   echo ""
   echo "  → nuevo worktree desde origin/$default_branch: $wt_name"
+  local wt_path="$worktrees_dir/$wt_name"
   cd "$_CCWT_PROJECT" && cc --worktree "$wt_name"
+  [[ -d "$wt_path" ]] && cd "$wt_path"
 }
 
 # Resolve a PR number/URL to its branch and open/create the worktree. Prompts if no arg.
