@@ -108,7 +108,7 @@ declare -a output_dirs=()
 for file in "${files[@]}"; do
     dir=$(dirname "$file")
     stem=$(basename "${file%.*}")
-    output_dirs+=("$dir/${stem}_frames_${mode}")
+    output_dirs+=("$dir/${stem}_frames_${mode}_${preset}")
 done
 
 PID_FILE=$(mktemp)
