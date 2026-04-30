@@ -18,6 +18,7 @@ Ejemplos:
   python3 video_capture.py video.avi medium --rotate 180
   python3 video_capture.py video.avi low --output /tmp/capturas
   python3 video_capture.py video.avi smart --min-blob-pct 0.5 --gap 5 --pad 1
+  python3 video_capture.py video.avi smart --quality 75 --max-width 1280
 """
 
 import argparse
@@ -440,6 +441,7 @@ def process(
     end: float = 0,
     pixelize: bool = False,
     date_overlay: bool = True,
+    quality: int = 85,
 ) -> int:
     fps_cfg, threshold, cooldown, noise = MODES[mode]
     duration, rotation, real_fps, _, _ = get_video_info(video_path)
@@ -502,7 +504,7 @@ def process(
                     if boxes:
                         bgr   = apply_mosaic(bgr, boxes)
                     frame = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime, date_str)
+                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime, date_str, quality)
                 captured += 1
                 last_ts   = ts
             del frame  # libera el array grande antes del próximo frame
@@ -533,6 +535,7 @@ def save_range_previews(
     ranges: list[tuple[float, float]],
     rotation: int,
     max_width: int,
+    quality: int = 85,
 ) -> None:
     """Extrae 1 frame al inicio y 1 al final de cada rango, con label overlay.
     ffmpeg extrae el frame raw; PIL agrega el texto (ffmpeg acá no trae drawtext)."""
@@ -560,7 +563,7 @@ def save_range_previews(
                 continue
             img = Image.open(BytesIO(proc.stdout)).convert("RGB")
             img = _draw_label(img, label)
-            img.save(dest, quality=92)
+            img.save(dest, quality=quality, optimize=True)
 
 
 def save_ranges_video(
@@ -711,6 +714,7 @@ def smart_process(
     history: int = 500,
     var_threshold: float = 30.0,
     video_only: bool = False,
+    quality: int = 85,
 ) -> int:
     """Pass 1: scan MOG2 → rangos. Pass 2: full-fps extraction en cada rango."""
     duration, rotation, real_fps, _, _ = get_video_info(video_path)
@@ -755,7 +759,7 @@ def smart_process(
     Path(output_dir).mkdir(parents=True, exist_ok=True)
     print("Saving range boundaries preview...")
     save_range_previews(
-        video_path, Path(output_dir) / "_ranges_preview", ranges, rotation, max_width
+        video_path, Path(output_dir) / "_ranges_preview", ranges, rotation, max_width, quality
     )
 
     if video_only:
@@ -789,7 +793,7 @@ def smart_process(
                     if boxes:
                         bgr = apply_mosaic(bgr, boxes)
                     frame = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime, date_str)
+                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime, date_str, quality)
                 captured += 1
                 del frame
 
@@ -797,7 +801,7 @@ def smart_process(
     return captured
 
 
-def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool, src_mtime: float, date_str: str | None = None) -> None:
+def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool, src_mtime: float, date_str: str | None = None, quality: int = 85) -> None:
     minutes  = int(ts // 60)
     seconds  = ts % 60
     filename = f"{stem}_{idx:04d}_{minutes:02d}m{seconds:05.2f}s.jpg"
@@ -805,10 +809,13 @@ def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by
     dest.parent.mkdir(parents=True, exist_ok=True)
     if date_str:
         img = _draw_date(Image.fromarray(frame), date_str)
-        img.save(dest, quality=95)
+        img.save(dest, quality=quality, optimize=True)
     else:
         import cv2 as _cv2  # local: avoid hard dep si no está cargado
-        _cv2.imwrite(str(dest), frame[:, :, ::-1], [_cv2.IMWRITE_JPEG_QUALITY, 95])
+        opts = [_cv2.IMWRITE_JPEG_QUALITY, quality]
+        if hasattr(_cv2, "IMWRITE_JPEG_OPTIMIZE"):
+            opts += [_cv2.IMWRITE_JPEG_OPTIMIZE, 1]
+        _cv2.imwrite(str(dest), frame[:, :, ::-1], opts)
     os.utime(dest, (src_mtime, src_mtime))
 
 
@@ -839,6 +846,10 @@ def main():
                         help="Aplicar mosaico fuerte sobre caras detectadas en cada captura")
     parser.add_argument("--no-date", action="store_true",
                         help="No agregar overlay de fecha en las capturas")
+    parser.add_argument("--quality", "-q", type=int, default=85, metavar="N",
+                        help="Calidad JPEG 1–95 (default: 85). "
+                             "85 es visualmente equivalente a 95 pero ~40%% más liviano. "
+                             "75 para archivado, 65 para tamaño mínimo")
     # smart-mode flags
     parser.add_argument("--scan-fps", type=float, default=4.0,
                         help="[smart] FPS del pass 1 (default: 4)")
@@ -901,6 +912,7 @@ def main():
             history=args.history,
             var_threshold=args.var_threshold,
             video_only=args.video_only,
+            quality=args.quality,
         )
     else:
         captured = process(
@@ -914,6 +926,7 @@ def main():
             end=parse_time(args.end),
             pixelize=args.pixelize,
             date_overlay=not args.no_date,
+            quality=args.quality,
         )
 
     print(f"\nSaved {captured} frames in: {output_dir}/")

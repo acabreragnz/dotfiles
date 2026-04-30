@@ -44,6 +44,27 @@ zenity --question \
     --ok-label="Yes" --cancel-label="No" --default-cancel 2>/dev/null \
     && pixelize_flag="--pixelize"
 
+# ── Output size preset ────────────────────────────────────────────────────────
+preset=$(zenity --list \
+    --title="Extract frames — output size" \
+    --text="Output size preset:" \
+    --radiolist \
+    --column="" --column="Preset" --column="Details" \
+    --print-column=2 \
+    TRUE  "standard"  "Quality 85%, up to 1920px — recommended" \
+    FALSE "compact"   "Quality 75%, up to 1280px — ~3× smaller" \
+    FALSE "miniature" "Quality 65%, up to 854px  — ~8× smaller" \
+    --width=640 --height=490)
+
+[ -z "$preset" ] && exit 0
+
+case "$preset" in
+    standard)  quality=85; max_width=1920 ;;
+    compact)   quality=75; max_width=1280 ;;
+    miniature) quality=65; max_width=854  ;;
+    *)         quality=85; max_width=1920 ;;
+esac
+
 # ── Warning for full mode ─────────────────────────────────────────────────────
 if [[ "$mode" == "full" ]]; then
     total_frames=0
@@ -102,6 +123,7 @@ PID_FILE=$(mktemp)
         echo "$pct"
         echo "# ($i/$total) $name"
         python3 "$SCRIPT" "$file" "$mode" $pixelize_flag \
+            --quality "$quality" --max-width "$max_width" \
             --output "${output_dirs[$((i-1))]}" >/dev/null 2>/dev/null &
         echo $! > "$PID_FILE"
         wait
