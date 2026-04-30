@@ -36,6 +36,30 @@ mode=$(zenity --list \
 
 [ -z "$mode" ] && exit 0
 
+# ── Date overlay position ─────────────────────────────────────────────────────
+date_position=$(zenity --list \
+    --title="Extract frames — date overlay" \
+    --text="Date overlay position:" \
+    --checklist \
+    --column="" --column="Position" \
+    --print-column=2 \
+    --separator="," \
+    FALSE "none" \
+    TRUE  "right" \
+    FALSE "left" \
+    FALSE "center" \
+    --width=400 --height=490)
+
+[ $? -ne 0 ] && exit 0
+
+date_flag=""
+if [[ -z "$date_position" || "$date_position" == "none" || "$date_position" == *"none"* ]]; then
+    date_flag="--no-date"
+else
+    date_flag="--date-position ${date_position//,none/}"
+    date_flag="${date_flag//none,/}"
+fi
+
 # ── Pixelize option (separate checkbox) ───────────────────────────────────────
 pixelize_flag=""
 zenity --question \
@@ -122,7 +146,7 @@ PID_FILE=$(mktemp)
         pct=$(( i * 100 / total ))
         echo "$pct"
         echo "# ($i/$total) $name"
-        python3 "$SCRIPT" "$file" "$mode" $pixelize_flag \
+        python3 "$SCRIPT" "$file" "$mode" $pixelize_flag $date_flag \
             --quality "$quality" --max-width "$max_width" \
             --output "${output_dirs[$((i-1))]}" >/dev/null 2>/dev/null &
         echo $! > "$PID_FILE"

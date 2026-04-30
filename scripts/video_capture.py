@@ -442,6 +442,7 @@ def process(
     pixelize: bool = False,
     date_overlay: bool = True,
     quality: int = 85,
+    date_position: str = "right",
 ) -> int:
     fps_cfg, threshold, cooldown, noise = MODES[mode]
     duration, rotation, real_fps, _, _ = get_video_info(video_path)
@@ -504,7 +505,7 @@ def process(
                     if boxes:
                         bgr   = apply_mosaic(bgr, boxes)
                     frame = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime, date_str, quality)
+                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime, date_str, quality, date_position)
                 captured += 1
                 last_ts   = ts
             del frame  # libera el array grande antes del próximo frame
@@ -715,6 +716,7 @@ def smart_process(
     var_threshold: float = 30.0,
     video_only: bool = False,
     quality: int = 85,
+    date_position: str = "right",
 ) -> int:
     """Pass 1: scan MOG2 → rangos. Pass 2: full-fps extraction en cada rango."""
     duration, rotation, real_fps, _, _ = get_video_info(video_path)
@@ -793,7 +795,7 @@ def smart_process(
                     if boxes:
                         bgr = apply_mosaic(bgr, boxes)
                     frame = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime, date_str, quality)
+                _save(frame, output_dir, stem, captured + 1, ts, by_minute, src_mtime, date_str, quality, date_position)
                 captured += 1
                 del frame
 
@@ -801,14 +803,14 @@ def smart_process(
     return captured
 
 
-def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool, src_mtime: float, date_str: str | None = None, quality: int = 85) -> None:
+def _save(frame: np.ndarray, output_dir: str, stem: str, idx: int, ts: float, by_minute: bool, src_mtime: float, date_str: str | None = None, quality: int = 85, date_position: str = "right") -> None:
     minutes  = int(ts // 60)
     seconds  = ts % 60
     filename = f"{stem}_{idx:04d}_{minutes:02d}m{seconds:05.2f}s.jpg"
     dest     = Path(output_dir) / (f"{minutes:02d}m" if by_minute else "") / filename
     dest.parent.mkdir(parents=True, exist_ok=True)
     if date_str:
-        img = _draw_date(Image.fromarray(frame), date_str)
+        img = _draw_date(Image.fromarray(frame), date_str, date_position)
         img.save(dest, quality=quality, optimize=True)
     else:
         import cv2 as _cv2  # local: avoid hard dep si no está cargado
@@ -846,6 +848,8 @@ def main():
                         help="Aplicar mosaico fuerte sobre caras detectadas en cada captura")
     parser.add_argument("--no-date", action="store_true",
                         help="No agregar overlay de fecha en las capturas")
+    parser.add_argument("--date-position", default="right",
+                        help="Posición del timestamp: right, left, center, both, o combinación separada por coma (ej: left,right). Default: right")
     parser.add_argument("--quality", "-q", type=int, default=85, metavar="N",
                         help="Calidad JPEG 1–95 (default: 85). "
                              "85 es visualmente equivalente a 95 pero ~40%% más liviano. "
@@ -913,6 +917,7 @@ def main():
             var_threshold=args.var_threshold,
             video_only=args.video_only,
             quality=args.quality,
+            date_position=args.date_position,
         )
     else:
         captured = process(
@@ -927,6 +932,7 @@ def main():
             pixelize=args.pixelize,
             date_overlay=not args.no_date,
             quality=args.quality,
+            date_position=args.date_position,
         )
 
     print(f"\nSaved {captured} frames in: {output_dir}/")
