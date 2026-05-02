@@ -51,7 +51,7 @@
 
 ## Apps de uso frecuente
 
-- **MoneyKeeper**: app de trackeo de gastos personales. Se usa principalmente en mobile, aunque tiene web con funcionalidades parciales (en desarrollo). Para labels GTD: usar `📱 telefono`, no `💻 digital`.
+- **MoneyKeeper**: app de trackeo de gastos personales. Acceso via API web (`moneykeeperapp.misa.vn`) con el skill `money-keeper` — search/list/create/delete funcionan. Para labels GTD: usar `💻 digital` (ya no `📱 telefono`).
 
 ## Todoist — Tareas recurrentes
 
@@ -96,6 +96,7 @@
 
 - **Siempre dar recomendación al hacer preguntas:** cuando le preguntás algo al usuario (especialmente en brainstorming u opciones), incluir tu punto de vista antes de que lo pida. No esperar a que diga "qué recomendás".
 - **Proponer opciones con ejemplos concretos:** cuando presentás alternativas, mostrar cómo se vería cada una en la práctica — no solo describirlas en abstracto.
+- **Cuando el usuario comparte algo que aprendió, educar proactivamente:** explicar el "por qué" detrás del concepto, implicaciones, contexto técnico — no solo transcribirlo o capturarlo. **Why:** el usuario lo señaló explícitamente: "no me educaste un choto". **How to apply:** ante cualquier aprendizaje compartido, profundizar en los mecanismos subyacentes antes de ofrecer capturarlo.
 
 # Obsidian
 
@@ -129,6 +130,10 @@
 - **Nombres de skills: siempre verbo accionable** — `automation-charge-oca`, no `automation-oca-splitwise`. El usuario tiene que corregirlo si se olvida.
 - **Skills puros vs. orchestrators:** la lógica de negocio específica de una automatización (detección de condiciones, cálculos derivados, decisiones condicionales) va en el skill `automation-*` orchestrator, NO en el sub-skill puro. Los sub-skills (ej: `scotiabank`, `splitwise`) solo exponen operaciones atómicas reutilizables.
 - **`~/.claude/skills/<name>/` son symlinks a nivel DIRECTORIO a `~/.agents/skills/<name>/`** — es decir, el directorio entero del skill es el symlink, no el `SKILL.md` adentro. Por eso `readlink ~/.claude/skills/<name>/SKILL.md` devuelve vacío (el archivo en sí no es symlink) pero `readlink ~/.claude/skills/<name>` sí muestra el target. **Why:** ya pasó — asumí que `.claude/.../SKILL.md` y `.agents/.../SKILL.md` eran archivos independientes basándome en `diff … && echo SAME` (que solo prueba contenido idéntico, no estructura). Hice `rm ~/.claude/skills/daily/SKILL.md && ln -s ~/.agents/skills/daily/SKILL.md ~/.claude/skills/daily/SKILL.md` "para migrar a symlink", pero como el directorio padre ya era symlink, `rm` borró el canónico real y `ln -s` creó un **self-symlink** (`/home/.../.agents/.../SKILL.md -> /home/.../.agents/.../SKILL.md`) que rompió todo con `ELOOP`. **How to apply:** (1) editar cualquiera de los dos paths funciona — es el mismo archivo físico; (2) NUNCA `rm` + `ln -s` entre estos dos árboles — el dir padre ya es symlink, te vas a borrar el canónico y crear un loop; (3) antes de asumir estructura, `ls -la ~/.claude/skills/<name>` (no el SKILL.md, el directorio) para ver el symlink; (4) si ves un self-symlink `X -> X`, borrar y `Write` directo en `~/.agents/skills/<name>/SKILL.md` (el path canónico).
+
+# Skills — Fases Conversacionales
+
+- **Cuando un skill tenga una fase conversacional explícita antes de ejecutar, respetar ese contrato:** hacer solo la pregunta indicada y esperar. No lanzar agentes, no escribir borradores, no "adelantar" trabajo. Avanzar un paso a la vez, igual que `/brainstorming`. **Why:** el default de "hacer" override el flujo del skill — ya pasó con `/write-til`, donde lancé un agente de research y empecé a redactar antes de terminar el diálogo. **How to apply:** si el skill devuelve una pregunta sin haber terminado la fase de entendimiento, la única acción válida es esperar la respuesta del usuario antes de ejecutar cualquier herramienta.
 
 # Información y Documentación
 
