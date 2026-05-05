@@ -1,20 +1,8 @@
 # Datos Personales
 
-- **Ubicación**: Ciudad de la Costa, Uruguay — coordenadas casa: -34.840030, -55.971159 (zona Lagomar/Solymar). Usar para clima, distancias, servicios locales, Google Maps, etc.
-- **Pareja**: Flor (guardada como "Amor" en WhatsApp)
-- **Mascotas**: 2 perros — Auri y More
-- **Situación laboral**: Empleado en relación de dependencia, pero factura como empresa (solo a esa empresa)
-- **Horario laboral**: Flexible, tronco común 10:00–18:00. Almuerzo después de las 13:15.
-- **Rubro**: Tecnología / software
-- **Deporte**: Gym + running (hace carreras). Running: martes y jueves de 19:00 a 21:00 (clase grupal), y domingo (fondo largo, hora variable). Gym: lunes, miércoles y viernes a las 21:00; sábado de mañana (horario variable). 3 días por semana.
-- **Profe de gym**: Facundo. La planilla de seguimiento está en Google Drive, se llama **"ANTHONY CABRERA"** (ID: `1IqUoa_xdi15ZV5k-mV4HUNWB2JG7YDj96RoSTzOyYSU`), compartida por él. Los pesos que Facu ve y controla están ahí.
-- **Profe de running**: Mirco.
-- **Vehículo**: BYD Seagull Surf (único auto)
-- **Bancos**: BROU (principal) + Itaú (importante también)
-- **Mutual**: COSEM
-- **Fecha de nacimiento**: 19/12/1991
-- **Teléfono**: `099081246` (nacional) · `+598 99 081 246` (internacional)
-- **Hijos**: No
+Datos completos en: `~/personal/obsidian/second-brain/3 - Resources/Personal/Datos personales.md`
+
+Leer ese archivo **antes de responder** cualquier pregunta que requiera datos de identidad, domicilio, contacto, vehículo, salud, talles o empresa unipersonal — sin esperar que el usuario lo pida explícitamente.
 
 # Scripts personales
 
@@ -35,6 +23,7 @@
 # Herramientas y Preferencias Técnicas
 
 - Preferir `jq` para parsear JSON en comandos `curl` simples. Usar `python3` solo si la lógica es compleja y `jq` se vuelve ilegible.
+- **`ast-grep` para buscar patrones de código:** preferí `ast-grep` (instalación: `npm install -g @ast-grep/cli`) sobre `grep` cuando buscás patrones que dependen de la estructura sintáctica — JSX elements con props específicas, llamadas de función con argumentos, declaraciones de tipo, decorators, imports, etc. **Why:** grep es line-by-line — un elemento multi-línea como `<Foo\n  prop={...}\n>` no se correlaciona como unidad, y filtrar visualmente cientos de hits es no-determinístico bajo presión de contexto. ast-grep parsea con tree-sitter y matchea estructura, no texto. **How to apply:** sintaxis tipo `ast-grep --pattern '<Foo $$$A bar={$_} $$$B>' --lang jsx src/` (`$_` = un nodo, `$$$X` = lista de nodos). Probar `--lang jsx` y `--lang tsx` por separado, y considerar tanto `>` como `/>` self-closing. Limitación: no ve dentro de spread props (`{...obj}`) — para eso, tracear la fuente del spread manualmente o delegar a subagentes. Para texto plano (logs, paths, strings literales en docs/JSON), seguí con grep — ahí ast-grep no aporta.
 - **OSRM para tiempos de viaje:** usar `router.project-osrm.org` (gratis, sin API key) para calcular distancias y tiempos. Sin tráfico real → aplicar offset según franja horaria (ver `.claude/task-description-template.md` del vault). Formato: `curl -s "http://router.project-osrm.org/route/v1/driving/LON1,LAT1;LON2,LAT2?overview=false"`
 - **jq — sintaxis correcta para filtrar campos:** usar siempre `{id: .id, name: .name}`, NO el shorthand `{id, name}` (falla en shell).
 - **jq — Todoist API v1:** los listados devuelven `{"results": [...]}`, no array plano. Iterar con `.results[]`, no `.[]`.
