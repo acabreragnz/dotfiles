@@ -139,8 +139,9 @@ Leer ese archivo **antes de responder** cualquier pregunta que requiera datos de
 - **NUNCA inventes o asumas** información técnica sin verificar primero.
 - Usa WebSearch para obtener información de 2026, no de tu conocimiento de 2025.
 
-# Git — Resolución de Conflictos
+# Git
 
+- **Restaurar un archivo a versión de master: `git restore --source=origin/master -- <file>`** — nunca `git checkout`, que está bloqueado por el hook de permisos (se interpreta como branch switching). **How to apply:** cualquier vez que haya que revertir un archivo puntual a master, usar este comando.
 - **Antes de resolver cualquier conflicto de rebase/merge**, revisar el PR activo del usuario (`gh api repos/.../pulls/<n>/files`) para entender qué cambios hizo. Comparar ambas versiones (HEAD = master, incoming = commit del usuario) y explicar el análisis antes de actuar. Nunca tomar una porción automáticamente sin ese paso previo.
 - **Resolución de conflictos — siempre de a un archivo a la vez con la Edit tool.** Nada de scripts bulk (sed/awk/python/loops) aunque los archivos sigan el mismo patrón. **Why:** el usuario quiere ver con sus propios ojos qué queda en cada archivo antes de stagear. **How to apply:** grep/status está bien para inspeccionar, pero cada resolución va con Edit individual mostrando el `old_string` completo del bloque `<<<<<<<...=======...>>>>>>>` y el `new_string` resultante.
 
