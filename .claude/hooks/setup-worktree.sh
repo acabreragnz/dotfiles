@@ -109,6 +109,16 @@ if [ -d "$WORKTREE_PATH/.claude/skills" ]; then
     done
 fi
 
+# Copy gitignored local-only env files so the worktree behaves the same as
+# the main checkout (e.g. VITE_RUNNING2026NEWUI=0 for QA-matching dev runs in
+# lift). Vite reads .env.development.local in dev mode; .env.local is tracked.
+for env_file in .env.development.local .env.local.override; do
+    if [ -f "$CWD/$env_file" ]; then
+        cp "$CWD/$env_file" "$WORKTREE_PATH/$env_file" 2>/dev/null || true
+        echo "Copied $env_file to worktree" >&2
+    fi
+done
+
 # Copy docs/tickets/ — gitignored so not checked out automatically
 if [ -d "$CWD/docs/tickets" ]; then
     cp -r "$CWD/docs/tickets" "$WORKTREE_PATH/docs/tickets" 2>/dev/null || true
