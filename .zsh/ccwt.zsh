@@ -15,6 +15,37 @@ _CCWT_PROJECT=""  # resolved on each ccwt() invocation
 
 # ── Helpers ────────────────────────────────────────────────────
 
+_ccwt_state_dir() {
+  echo "${XDG_STATE_HOME:-$HOME/.local/state}/ccwt"
+}
+
+# Per-project state file so each repo remembers its own last worktree.
+_ccwt_state_file() {
+  local slug="${_CCWT_PROJECT//\//-}"
+  echo "$(_ccwt_state_dir)/last${slug}"
+}
+
+_ccwt_save_last() {
+  local path="$1"
+  [[ -z "$path" || ! -d "$path" ]] && return
+  command mkdir -p "$(_ccwt_state_dir)" 2>/dev/null
+  print -r -- "$path" > "$(_ccwt_state_file)"
+}
+
+_ccwt_load_last() {
+  local f
+  f=$(_ccwt_state_file)
+  [[ -f "$f" ]] && command cat "$f" 2>/dev/null
+}
+
+# Persist + cd + open a fresh cc session in the worktree.
+_ccwt_enter() {
+  local path="$1"
+  [[ -d "$path" ]] || { echo "  ✗ no existe: $path"; return 1; }
+  _ccwt_save_last "$path"
+  cd "$path" && cc
+}
+
 _ccwt_require_gum() {
   if ! command -v gum >/dev/null 2>&1; then
     echo "  ✗ 'gum' no está instalado."
@@ -102,7 +133,7 @@ _ccwt_open_branch() {
     local existing="${_ccwt_branch_to_wt[$branch]}"
     echo ""
     echo "  → worktree ya existe, abriendo ${existing:t} (sesión nueva)"
-    cd "$existing" && cc
+    _ccwt_enter "$existing"
     return
   fi
 
@@ -115,7 +146,10 @@ _ccwt_open_branch() {
   [[ "$wt_name" != "$branch" ]] && echo "  → nombre worktree: $wt_name"
   local wt_path="$_CCWT_PROJECT/.claude/worktrees/$wt_name"
   cd "$_CCWT_PROJECT" && cc --worktree "$wt_name"
-  [[ -d "$wt_path" ]] && cd "$wt_path"
+  if [[ -d "$wt_path" ]]; then
+    _ccwt_save_last "$wt_path"
+    cd "$wt_path"
+  fi
 }
 
 # ── Main ────────────────────────────────────────────────────────
@@ -158,6 +192,19 @@ _ccwt_dispatch_arg() {
   arg="${arg%"${arg##*[![:space:]]}"}"
   [[ -z "$arg" ]] && { echo "  ✗ arg vacío"; return 1; }
 
+  # 0. `ccwt -` → resume last worktree for this project
+  if [[ "$arg" == "-" ]]; then
+    local last
+    last=$(_ccwt_load_last)
+    if [[ -z "$last" || ! -d "$last" ]]; then
+      echo "  ✗ no hay último worktree guardado para ${_CCWT_PROJECT:t}"
+      return 1
+    fi
+    echo "  → último worktree: ${last:t} (sesión nueva)"
+    _ccwt_enter "$last"
+    return
+  fi
+
   # 1. PR number or GitHub PR URL
   if [[ "$arg" =~ ^[0-9]+$ || "$arg" == https://github.com/*/pull/* ]]; then
     _ccwt_resolve_pr "$arg"
@@ -170,7 +217,7 @@ _ccwt_dispatch_arg() {
   local worktrees_dir="$_CCWT_PROJECT/.claude/worktrees"
   if [[ -d "$worktrees_dir/$arg" ]]; then
     echo "  → abriendo worktree existente: $arg"
-    cd "$worktrees_dir/$arg" && cc
+    _ccwt_enter "$worktrees_dir/$arg"
     return
   fi
 
@@ -218,7 +265,18 @@ function _ccwt_go() {
 
   local -a labels
   local -A label_to_action
-  labels=("$NEW_LABEL" "$PR_LABEL" "$MANUAL_LABEL")
+  labels=()
+
+  # Surface last-used worktree at the top so `ccwt` + Enter resumes it.
+  local last_wt
+  last_wt=$(_ccwt_load_last)
+  if [[ -n "$last_wt" && -d "$last_wt" ]]; then
+    local LAST_LABEL="↩️    Último: $(_ccwt_format_worktree_label "$last_wt")"
+    labels+=("$LAST_LABEL")
+    label_to_action[$LAST_LABEL]="wt:$last_wt"
+  fi
+
+  labels+=("$NEW_LABEL" "$PR_LABEL" "$MANUAL_LABEL")
   label_to_action[$NEW_LABEL]="new:"
   label_to_action[$PR_LABEL]="pr:"
   label_to_action[$MANUAL_LABEL]="manual:"
@@ -246,7 +304,7 @@ function _ccwt_go() {
   local value="${action#*:}"
 
   case "$type" in
-    wt)     echo "  → ${value:t} (sesión nueva)"; cd "$value" && cc ;;
+    wt)     echo "  → ${value:t} (sesión nueva)"; _ccwt_enter "$value" ;;
     br)     _ccwt_open_branch "$value" ;;
     new)    _ccwt_create_new ;;
     pr)     _ccwt_resolve_pr ;;
@@ -303,7 +361,7 @@ function _ccwt_create_new() {
       echo ""
       echo "  ⚠ ya existe un worktree llamado: $wt_name"
       if gum confirm "¿Abrir el existente en sesión nueva?"; then
-        cd "$collision_path" && cc
+        _ccwt_enter "$collision_path"
       else
         echo "  Cancelado."
       fi
@@ -334,7 +392,10 @@ function _ccwt_create_new() {
   echo "  → nuevo worktree desde origin/$default_branch: $wt_name"
   local wt_path="$worktrees_dir/$wt_name"
   cd "$_CCWT_PROJECT" && cc --worktree "$wt_name"
-  [[ -d "$wt_path" ]] && cd "$wt_path"
+  if [[ -d "$wt_path" ]]; then
+    _ccwt_save_last "$wt_path"
+    cd "$wt_path"
+  fi
 }
 
 # Resolve a PR number/URL to its branch and open/create the worktree. Prompts if no arg.
@@ -508,6 +569,15 @@ function _ccwt_delete_worktree() {
   local claude_project="$HOME/.claude/projects/$encoded"
   if [[ -d "$claude_project" ]]; then
     command rm -rf "$claude_project" && echo "    claude project dir limpiado"
+  fi
+
+  # Forget the saved "last" pointer if it referenced this worktree.
+  local _CCWT_PROJECT="$project"
+  local saved_last state_file
+  saved_last=$(_ccwt_load_last)
+  if [[ "$saved_last" == "$path" ]]; then
+    state_file=$(_ccwt_state_file)
+    command rm -f "$state_file" 2>/dev/null
   fi
 
   echo "    listo"
