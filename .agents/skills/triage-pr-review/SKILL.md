@@ -154,6 +154,10 @@ snapshot = f"/tmp/triage-master-{path.replace('.', '_').replace('/', '_')}"
 
 If you see v2 producing wildly inflated A=4 counts (110+ structural detections), check the master snapshot filenames first — that's the signature.
 
+### Phase 2 agents — pre-fetch diff inline, never let them call `git diff`
+
+`pr-review-toolkit:code-reviewer` agents launched with just a file path and an instruction "run `git diff master...HEAD -- <file>`" will sometimes return false "OK" / "no diff" results — the sub-shell appears to misfire and the agent reports a clean file when it isn't. **Always pre-fetch the diff in the parent and embed it inline in the agent prompt** (under a clearly delimited `DIFF:` heading). Verify by re-running `git diff master...HEAD --stat -- <path>` yourself for any "OK" finding on a file you suspected had changes — if `--stat` shows non-zero LOC, the agent failed and you must re-dispatch with the diff embedded.
+
 ### Don't trust intermediate output while the script iterates
 
 The Sonnet subagent may rewrite and re-run the script several times. Do not read `.agents/review-triage-summary.txt` for final counts until the agent reports completion — intermediate runs (especially before bugs like the snapshot-extension issue are caught) can produce drastically wrong bucket distributions.
