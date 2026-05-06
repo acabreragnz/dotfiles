@@ -142,12 +142,64 @@ Concrete example (when A4 + Pane wrapping has hits):
 
 **Section 2 — Per-file annotated (score ≥ 7, sorted desc)**
 
-For each file in the threshold:
+Each file gets a **narrative block, not a checklist dump**. The reviewer should be able to read it like prose and walk away knowing what could break and where to look. Bullet-soup with mechanical detections (`majorScale(2) → mt-4` ✓) buries the signal.
 
-- Triage line: `**Triage**: A=N, B=N, C=N, D=N — flags`
-- Auto-detected diff patterns (ast-grep + regex against the file's diff): structural Pane wraps with line refs, ellipsis triplet movement, color attr token swaps, testid removals, void prefix locations, className spacing changes (with majorScale→Tailwind equivalence check: `majorScale(N) = N*8px = m_-{2N}`), scope-creep markers
-- Self-review checklist: `- [ ] ...` items derived from the patterns
-- Manual-test verdict block
+**Required structure**:
+
+```md
+## `<path>` _(score N)_
+
+**Triage**: A=N B=N C=N D=N — flags
+
+**Lo que cambió y por qué importa**
+
+<1-3 sentences framing what's in the diff. Distinguish the "innocent" mechanical
+moves (Pane wraps with layout-prop relocations, mapped prop renames, equivalent
+className conversions) from the spots that introduce real uncertainty. Name
+specific line refs only for the risky parts. If everything is mechanical, say so
+in 1 sentence and stop — don't invent things to flag.>
+
+[If there's a meaningful before/after worth seeing, include a small code block:]
+
+```jsx
+// Antes
+...
+
+// Después
+...
+```
+
+**Por qué funcionaba antes**: <one short paragraph explaining the prior behavior
+and why it worked, even if it was an anti-pattern>.
+
+**Por qué puede no funcionar ahora**: <one short paragraph explaining what changed
+in the DOM/CSS/runtime that breaks the prior behavior; what the user-visible
+symptom would be>.
+
+**Verificación + fix**: <one paragraph combining (a) what to inspect in DevTools
+or rendered output to confirm, (b) the suggested fix, and (c) any bonus side-effect
+the fix resolves>.
+
+**Manual test**: <verdict from rule table>
+```
+
+**Filtering rules — what NOT to write under "Lo que cambió"**:
+
+- ❌ `pl-2 = 8px = majorScale(1)` ✓ — mechanical equivalence we already trust
+- ❌ "Import reorder only (no semantic change)" — non-events
+- ❌ `fontWeight={300}` mapped to `weight="regular"` per WEIGHT_MAP — predictable
+- ❌ Listing every Pane wrap when most just relocated layout props
+- ❌ Self-review checklist of items the reviewer would already check naturally
+
+**What TO write**:
+
+- ✅ Anti-patterns that were *partially* resolved by the migration (e.g. flex chain broken because `<Paragraph>` stayed in the middle)
+- ✅ Behavior changes implied by the migration (e.g. `overflow:inherit` → `overflow:visible`, `key={index}` → `key={item.id}`)
+- ✅ Conversions where the equivalence is doubtful or arbitrary (e.g. `className="px-[5px]"` arbitrary value, `text-[#0A1433]` raw hex instead of token)
+- ✅ Scope creep refactors mixed into the migration commit (reduce → for-of, void prefixes)
+- ✅ Color token semantic mismatches worth designer attention
+
+**Length budget**: aim for ~15-25 lines per file block when there's something worth saying. For pure-mechanical files, 3-5 lines is enough ("Todo mecánico — Pane wraps con relocations 1:1, classNames equivalentes. ✅ skip"). Don't pad.
 
 Manual-test verdict — derived from this rule table:
 
