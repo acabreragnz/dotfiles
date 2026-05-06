@@ -175,14 +175,24 @@ function ccwt() {
     return
   fi
 
+  local -a _menu_opts=()
+  local _last_wt
+  _last_wt=$(_ccwt_load_last)
+  if [[ -n "$_last_wt" && -d "$_last_wt" ]]; then
+    _menu_opts+=("↩️   Último: ${_last_wt:t}")
+  fi
+  _menu_opts+=(
+    "🚀  Ir a un worktree (crear o abrir)"
+    "🗑  Borrar worktree(s)"
+    "💣  Borrar TODOS los worktrees"
+    "📋  Listar worktrees"
+  )
+
   local action
-  action=$(gum choose --header="¿Qué querés hacer?" \
-    "🚀  Ir a un worktree (crear o abrir)" \
-    "🗑  Borrar worktree(s)" \
-    "💣  Borrar TODOS los worktrees" \
-    "📋  Listar worktrees") || { echo "  Cancelado."; return 1; }
+  action=$(printf "%s\n" "${_menu_opts[@]}" | gum choose --header="¿Qué querés hacer?") || { echo "  Cancelado."; return 1; }
 
   case "$action" in
+    *"Último:"*)                   _ccwt_enter "$_last_wt" ;;
     *"Ir a un worktree"*)          _ccwt_go ;;
     *"Borrar TODOS"*)              _ccwt_delete_all ;;
     *"Borrar worktree"*)           _ccwt_delete_some ;;
