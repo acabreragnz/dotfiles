@@ -26,9 +26,12 @@ _ccwt_state_file() {
 }
 
 _ccwt_save_last() {
+  local PATH="/usr/bin:/bin:$PATH"
   local path="$1"
   [[ -z "$path" || ! -d "$path" ]] && return
-  command mkdir -p "$(_ccwt_state_dir)" 2>/dev/null
+  local dir
+  dir=$(_ccwt_state_dir)
+  command mkdir -p "$dir" 2>/dev/null || return
   print -r -- "$path" > "$(_ccwt_state_file)"
 }
 
