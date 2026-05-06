@@ -52,15 +52,33 @@ Also propose bucket thresholds (e.g. `0 → SKIP, 1-2 → SCAN, 3-5 → REVIEW, 
 
 ### Step 3 — Generate one-shot triage script
 
-Write `/tmp/triage-<branch-slug>.py` with everything embedded (no imports from `.agents/`). The script must:
+Write `/tmp/triage-<branch-slug>.py` with everything embedded (no imports from `.agents/`). **Delegate this step to a Sonnet subagent** (`Agent` with `subagent_type: general-purpose`, `model: sonnet`) — the script is mechanical and the parent context shouldn't burn tokens on it.
 
-1. List modified files: `git diff master...HEAD --name-only --diff-filter=AM`.
-2. For each file: `git diff master...HEAD -- <file>` → count `+` lines outside the import block (detect imports as the contiguous leading block of lines starting with `import`/`from` in the `+` side).
-3. Apply A (regex over `+` lines for the patterns the user approved), B (LOC count), C (path match), D (red flag detectors).
-4. Sum to a score, bucket by threshold.
-5. Write `.agents/review-buckets-{deep,review,scan,skip}.txt` (one file path per line) and `.agents/review-triage-summary.txt` (counts + score histogram + top-20 table with file:score).
+The script must use a **hybrid approach**: ast-grep for structural detections, regex on diff hunks for line-based metrics.
 
-Run it: `python3 /tmp/triage-<branch-slug>.py` from the repo root. If it errors, fix the script in place and re-run.
+#### Structural detections — use ast-grep on full files
+
+Diff hunks aren't valid JSX/TSX (they're partial), so ast-grep can't parse them. Instead, for each modified file: snapshot master via `git show master:<path> > /tmp/triage-master-<sanitized>.<ext>` and run ast-grep on both the master snapshot AND the current working-tree file. Compare match counts to detect what was *introduced*.
+
+Use ast-grep for:
+- **Target component JSX presence** (e.g. `<Paragraph $$$></Paragraph>` and self-closing variant) — drives D4 (no-target-touch flag) and is a precondition for A1+
+- **Wrapping/structural patterns** (e.g. `<Pane>...<Paragraph>...</Pane>` introduced) — drives A4
+- **Attribute-value changes inside the target** (e.g. `<Paragraph color=$VAL>` with `$VAL` matching `#hex` or `theme.`) — drives A3
+- **className containing layout utilities** inside the target — drives A2
+
+Required ast-grep flags: scan with both `--lang tsx` and `--lang jsx` (no automatic fallback in mixed codebases); always `stopBy: end` on relational rules; use `--ignore` for test/story exclusions, not Python post-filtering. See the `/ast-grep` skill for syntax.
+
+#### Line-based detections — use regex on diff hunks
+
+For these, regex on `git diff master...HEAD -- <file>` is fine:
+- **B (LOC outside imports)** — count `+` lines not matching `^[+]\s*(import|from)\s`
+- **D1 (oxlint-disable added)** — `+` line contains `oxlint-disable`
+- **D2 (scope creep hygiene)** — `+` line with `void <ident>(`, OR `.flatMap(` added with `.reduce(` removed
+- **D5 (trailing whitespace introduced)** — `+` line matches `\S+ +$`
+
+#### Outputs
+
+`.agents/review-buckets-{deep,review,scan,skip}.txt` (one path per line) and `.agents/review-triage-summary.txt` (counts + score histogram + top-30 table with score breakdown per file). Run from repo root: `python3 /tmp/triage-<branch-slug>.py`.
 
 ### Step 4 — Sanity check for scope creep
 
@@ -122,4 +140,20 @@ Omit the scope-creep line if Step 4 was skipped or returned zero hits.
 
 ## Troubleshooting
 
-(empty — fill in as issues are encountered during real runs, with user approval)
+### Master snapshot — preserve file extension
+
+When dumping `git show master:<path>` to a temp file for ast-grep, **only sanitize `/` separators, never the file extension**. ast-grep relies on the extension to pick the parser; a snapshot named `src_pages_X.txt` (or just `src_pages_X` with no extension) fails silently with zero matches even though the file content is valid JSX/TSX.
+
+```python
+# ✅ correct
+snapshot = f"/tmp/triage-master-{path.replace('/', '_')}"  # extension preserved
+
+# ❌ wrong — strips the extension
+snapshot = f"/tmp/triage-master-{path.replace('.', '_').replace('/', '_')}"
+```
+
+If you see v2 producing wildly inflated A=4 counts (110+ structural detections), check the master snapshot filenames first — that's the signature.
+
+### Don't trust intermediate output while the script iterates
+
+The Sonnet subagent may rewrite and re-run the script several times. Do not read `.agents/review-triage-summary.txt` for final counts until the agent reports completion — intermediate runs (especially before bugs like the snapshot-extension issue are caught) can produce drastically wrong bucket distributions.
