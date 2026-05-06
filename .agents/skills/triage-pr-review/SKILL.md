@@ -78,7 +78,9 @@ For these, regex on `git diff master...HEAD -- <file>` is fine:
 
 #### Outputs
 
-`docs/tickets/<TICKET>/review-buckets-{deep,review,scan,skip}.txt` (one path per line) and `docs/tickets/<TICKET>/review-triage-summary.txt` (counts + score histogram + top-30 table with score breakdown per file). Run from repo root: `python3 /tmp/triage-<branch-slug>.py`.
+`docs/tickets/<TICKET>/review-buckets-{deep,review,scan,skip}.txt` (one path per line), `docs/tickets/<TICKET>/review-triage-summary.txt` (counts + score histogram + top-30 table), and `docs/tickets/<TICKET>/review-metadata.json` (per-file score, dims, flags, plus `diff_path` pointing into the worktree-local `_diffs/` dir). Run from repo root: `python3 /tmp/triage-<branch-slug>.py`.
+
+**Pre-fetched diffs** must land in `docs/tickets/<TICKET>/_diffs/<sanitized>.diff` (one per file) — **never** `/tmp/diffs/`. Subagents can't read `/tmp/` (sandbox isolation), and Step 6 batch agents need to Read these files to write the self-review guide. The script must `mkdir -p docs/tickets/<TICKET>/_diffs/` and write each `git diff master...HEAD -- <path>` there. The sanitized filename rule: replace `/` with `_`, **preserve the original extension** (see Troubleshooting note).
 
 **Resolve `<TICKET>`** from `docs/tickets/CURRENT.md` (read the first line — `# ENG-NNNN: ...`). Fallback to the current branch name's `ENG-NNNN` token if CURRENT.md is missing or stale.
 
@@ -102,21 +104,24 @@ Add a header noting total count and the score threshold used. The threshold can 
 
 Write `docs/tickets/<TICKET>/self-review-guide.md` — a richer companion to the flat checklist. Generated **before Phase 2 dispatch** so the user can manually review high-risk files in parallel while agents run in background. Overwrite each fresh skill run.
 
-**Generation can be delegated to a Sonnet subagent.** Pass it: `docs/tickets/<TICKET>/review-metadata.json`, the pre-fetched diffs in `/tmp/diffs/`, the dimensions from Step 2, and the manual-test rule table below.
+**Generation can be delegated to a Sonnet subagent.** Pass it: `docs/tickets/<TICKET>/review-metadata.json`, the pre-fetched diffs in `docs/tickets/<TICKET>/_diffs/`, the dimensions from Step 2, and the manual-test rule table below.
+
+**🚨 Subagent I/O paths must live inside the worktree, never in `/tmp/`.** Claude Code's sandbox derives subagent allowed-paths from the parent's primary working directory; `/tmp/` is reachable from the parent but **not from subagents**, even with `mode: "bypassPermissions"`. Confirmed by upstream issues #32034, #45888, #29048 — Read/Write/Bash on `/tmp/` paths get silently denied inside subagents. The fix: route all subagent I/O through `docs/tickets/<TICKET>/_diffs/` (inputs) and `docs/tickets/<TICKET>/_scratch/` (outputs). Both are inside `docs/tickets/`, which is in the user's global `~/.gitignore` → local-only, never committed. The Step 3 triage script must write diffs to `docs/tickets/<TICKET>/_diffs/<sanitized>.diff`, not `/tmp/diffs/`.
 
 **Scale rule — batch when score ≥ 7 yields > 12 files.** A single agent generating 30+ annotated file blocks frequently hits the API's ~10 min stream-idle timeout (model accumulates context, re-reads diffs, and stalls mid-generation). Instead:
 
 - Split files into batches of **6-8 each**, group by score-desc so each batch is roughly homogeneous
-- Dispatch **N parallel Sonnet agents in background** (one per batch) — each writes its slice to `/tmp/guide-batch-<N>.md`
+- Dispatch **N parallel Sonnet agents in background** (one per batch) — each writes its slice to `docs/tickets/<TICKET>/_scratch/guide-batch-<N>.md` (inside the worktree, NOT `/tmp/`)
 - The parent context handles **Section 1** (generic patterns from dimensions) and **Section 3** (cross-file clusters from metadata) — these don't need per-file iteration, so do them inline
-- Concatenate at the end: `cat header.md /tmp/guide-batch-*.md section3.md > docs/tickets/<TICKET>/self-review-guide.md`
+- Concatenate at the end: `cat <(echo header) docs/tickets/<TICKET>/_scratch/guide-batch-*.md section3 > docs/tickets/<TICKET>/self-review-guide.md`
 
 **Per-batch prompt budget rules** (keeps each agent fast and timeout-resistant):
 
 - Hard cap **30 lines per file block**
 - "Don't quote diffs in output — point at line refs only" (e.g. "L34: Pane wraps Paragraph; ellipsis on inner `<p>` ✓")
 - Pre-extract metadata fields (path, score, A/B/C/D, flags, diff path) into the prompt as a bullet list — the agent shouldn't re-derive them from JSON
-- Tell the agent its scope is exactly N files and the output goes to one file — no header, no Section 1/3
+- Tell the agent its scope is exactly N files and the output goes to one file under `docs/tickets/<TICKET>/_scratch/` — no header, no Section 1/3
+- **Never** ask a subagent to read or write `/tmp/`. If a diff path looks like `/tmp/diffs/...`, fix the upstream Step 3 script first; don't paper over it in the agent prompt.
 
 #### Three sections
 
@@ -320,11 +325,31 @@ If an agent fails on Bash for a yadm command in particular, do not retry — jus
 A single Sonnet subagent asked to generate the entire self-review guide for **30+ files** will frequently hit the API's `Stream idle timeout - partial response received` error (~10 min idle limit). Symptoms: agent runs for 100+ minutes with dozens of `Read` tool calls (one per diff), accumulates context, and silently stalls mid-generation. The output file may not be written at all, or the file shown is from a previous skill run (wrong timestamp — verify with `ls -la`).
 
 **Fix**: always batch. Per Step 6 "Scale rule — batch when score ≥ 7 yields > 12 files":
-- Split into 6-8 file batches → N parallel Sonnet agents → each writes `/tmp/guide-batch-<N>.md`
+- Split into 6-8 file batches → N parallel Sonnet agents → each writes `docs/tickets/<TICKET>/_scratch/guide-batch-<N>.md` (worktree-local, NOT `/tmp/`)
 - Parent context handles Section 1 (patterns) and Section 3 (clusters) inline
 - Concatenate at the end
 
 A 31-file run that timed out as one agent completed cleanly in <2 min as 4 parallel batches of 8/8/8/7 files. The fan-out also dramatically reduces tail latency vs serial generation.
+
+### Subagent sandbox — `/tmp/` paths silently denied
+
+Subagents (any `subagent_type`, with or without `mode: "bypassPermissions"`) **cannot Read, Write, or Bash on `/tmp/` paths**. The parent session can; subagents cannot. This is a Claude Code sandbox bug, not a misconfiguration.
+
+**Symptoms**:
+- Agent reports "Permission to use Read/Write/Bash has been denied" on `/tmp/foo`
+- Agent runs for 200+ seconds making 25+ tool calls trying to write a `/tmp/` file
+- Agent returns the full output as a string in its `result` (because it couldn't persist) and asks you to grant permission
+- `mode: "bypassPermissions"` does NOT help — the sandbox is OS-level (bwrap) and runs below the permission system
+
+**Upstream issues**: anthropic/claude-code #32034 (root cause: sandbox derives allowed paths from primary working dir, doesn't propagate additional dirs to subagents), #45888 (Read/Edit denied on subagent's own worktree even with `isolation: "worktree"` + `bypassPermissions`), #29048 + #52962 (Write/Edit run in-process via `fs.writeFileSync`, sandbox restrictions only apply to Bash via bwrap).
+
+**Workaround for this skill**: route ALL subagent I/O through worktree-local paths inside `docs/tickets/<TICKET>/`:
+- Inputs: pre-fetched diffs at `docs/tickets/<TICKET>/_diffs/<sanitized>.diff`
+- Outputs: scratch fragments at `docs/tickets/<TICKET>/_scratch/guide-batch-<N>.md`
+
+Both `_diffs/` and `_scratch/` are inside `docs/tickets/`, which the user's global `~/.gitignore` excludes — local-only, never committed. The parent context (Step 3 script, Step 6 concatenation, Step 7 inline-diff embedding) is the only place `/tmp/` is acceptable, and even then prefer the worktree for anything that might cross a subagent boundary later.
+
+**If you find yourself dispatching a subagent and it complains about `/tmp/`**: do NOT redispatch with `bypassPermissions` (won't help). Either (a) rerun with the path moved into the worktree, or (b) salvage the inline `result` content the agent returned and write it from the parent.
 
 ### Don't trust intermediate output while the script iterates
 
