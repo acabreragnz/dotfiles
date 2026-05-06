@@ -107,17 +107,17 @@ bindkey '^H' backward-kill-word
 alias gcom="git checkout -m"
 
 ### Claude CLI aliases
-alias cc="claude"
-alias ccd="claude --dangerously-skip-permissions"
-alias ccp="claude -p"
-alias ccc="claude -c"
-alias ccr="claude -r"
-alias ccdc="claude --dangerously-skip-permissions -c"
-alias ccdr="claude --dangerously-skip-permissions -r"
-alias ccn='claude -n'
-alias ccdn='claude --dangerously-skip-permissions -n'
-alias ccl='claude --effort low'
-alias ccq='claude -p --effort low'
+# `cc`/`cci` load from ~/.zsh/cc.zsh via oh-my-zsh custom symlinks.
+alias ccd="cc"
+alias ccp="cc -p"
+alias ccc="cc -c"
+alias ccr="cc -r"
+alias ccdc="cc -c"
+alias ccdr="cc -r"
+alias ccn='cc -n'
+alias ccdn='cc -n'
+alias ccl='cc --effort low'
+alias ccq='cc -p --effort low'
 
 
 ### OpenCode CLI aliases
