@@ -49,7 +49,9 @@ _ccwt_enter() {
   local wt="$1"
   [[ -d "$wt" ]] || { echo "  ✗ no existe: $wt"; return 1; }
   _ccwt_save_last "$wt"
-  cd "$wt" && cc
+  # Restore a clean PATH before spawning cc so the new session inherits
+  # /usr/bin:/bin — parent cc sessions can strip these from the environment.
+  cd "$wt" && PATH="/usr/bin:/usr/local/bin:/bin:$PATH" cc
 }
 
 _ccwt_require_gum() {
