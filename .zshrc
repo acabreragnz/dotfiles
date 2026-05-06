@@ -106,48 +106,28 @@ bindkey '^H' backward-kill-word
 ### aliases
 alias gcom="git checkout -m"
 
-### Claude CLI aliases
-alias cc="claude"
-alias ccd="claude --dangerously-skip-permissions"
-alias ccp="claude -p"
-alias ccc="claude -c"
-alias ccr="claude -r"
-alias ccdc="claude --dangerously-skip-permissions -c"
-alias ccdr="claude --dangerously-skip-permissions -r"
-alias ccn='claude -n'
-alias ccdn='claude --dangerously-skip-permissions -n'
-alias ccl='claude --effort low'
-alias ccq='claude -p --effort low'
-
-
-# gwtrm [--all]  — remove worktrees interactively (fzf) or all at once
-function gwtrm() {
-  local main_path
-  main_path=$(git worktree list | head -1 | awk '{print $1}')
-
-  if [[ "$1" == "--all" ]]; then
-    git worktree list | tail -n +2 | awk '{print $1}' | while read -r path; do
-      git worktree remove --force "$path" && echo "Removed: $path"
-    done
-    git worktree prune
-  else
-    local worktrees selected
-    worktrees=$(git worktree list | tail -n +2 | awk '{print $1}')
-    if [[ -z "$worktrees" ]]; then
-      echo "No secondary worktrees found."
-      return 0
-    fi
-    selected=$(echo "$worktrees" | fzf --multi --prompt="Select worktrees to remove > ")
-    if [[ -z "$selected" ]]; then
-      echo "Cancelled."
-      return 0
-    fi
-    echo "$selected" | while read -r path; do
-      git worktree remove --force "$path" && echo "Removed: $path"
-    done
-    git worktree prune
-  fi
+### Claude CLI — base `cc` as function (so it works inside other shell functions where aliases don't expand)
+cc() {
+  # Defensive: child shells (e.g. nested `cc`, ccwt subshells) can inherit
+  # a PATH that lost ~/.local/bin or /usr/bin, breaking `command claude`.
+  local PATH="$HOME/.local/bin:/usr/bin:/bin:$PATH"
+  command claude --dangerously-skip-permissions "$@"
 }
+alias ccp="cc -p"
+alias ccc="cc -c"
+alias ccr="cc -r"
+alias ccn="cc -n"
+alias ccl="cc --effort low"
+alias ccq="cc -p --effort low"
+
+# cci — interactive model/effort picker via gum (defaults: sonnet, medium)
+function cci() {
+  local model effort
+  model=$(gum choose --header="Model" --selected=sonnet sonnet opus haiku) || return 1
+  effort=$(gum choose --header="Effort" --selected=medium low medium high xhigh max) || return 1
+  cc --model "$model" --effort "$effort" "$@"
+}
+
 
 ### OpenCode CLI aliases
 alias oc="opencode"
@@ -306,4 +286,10 @@ export PATH=$HOME/.opencode/bin:$PATH
 export PATH="$HOME/.local/bin:$PATH"
 export GOOGLE_WORKSPACE_CLI_ACCOUNT=acabreragnz@gmail.com
 export PATH="$HOME/.local/kitty.app/bin:$PATH"
-alias ccfork='kitten @ launch --type=tab --tab-title "Claude Branch" --cwd current claude --continue --fork-session'
+
+# bun completions
+[ -s "/home/tcabrera/.bun/_bun" ] && source "/home/tcabrera/.bun/_bun"
+
+# bun
+export BUN_INSTALL="$HOME/.bun"
+export PATH="$BUN_INSTALL/bin:$PATH"
