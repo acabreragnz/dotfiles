@@ -285,6 +285,76 @@ Print a compact summary:
 
 Omit the scope-creep line if Step 4 was skipped or returned zero hits.
 
+### Step 10 — Apply-fixes workflow (post-triage iteration)
+
+Once Steps 7-9 produce findings, transition to applying fixes. This is the conversational loop with the user — keep it tight, batch-friendly, and trackable.
+
+#### 10.1 Severity-tagged ID list
+
+Consolidate `review-report.md` findings + items from `self-review-guide.md` into a single H/M severity table with **short referenceable IDs** (`H1`, `H2`, …, `M1`, `M2`, …). HIGH = concrete bugs / designer-blocking decisions. MEDIUM = real risk, not blocking.
+
+Format: 1 row per item with `ID | file | one-line issue`. The user references items by ID (`"delegate H1 and H3, leave H2 for me"`) instead of paths — saves a ton of back-and-forth on long file paths.
+
+#### 10.2 🤖 vs 🤝 split with rationale
+
+For each item, propose:
+
+- **🤖 Delegable** — fix is concrete and well-defined. No judgment needed beyond the agent prompt. Examples: "drop intermediate `<Paragraph>` from flex parent", "convert Box prop to className", "selective revert of scope-creep hunk".
+- **🤝 Human-judgment** — fix needs the user's call. Examples: designer-required color decisions, scope-decision (revert vs keep), verification of theoretical risk against actual call-sites.
+
+Always include the **why** for the human-pile items (`"needs designer call on token mapping"`, `"5 callers — verify in DevTools"`). The user can override your split with one word ("delega H4 también") and you act on it.
+
+Use emoji prefixes consistently in chat — they scan faster than text labels:
+- 🔴 HIGH severity
+- 🟡 MEDIUM severity
+- 🤖 delegated to agent
+- 🤝 human-pile
+- ✅ done / verified / skip
+- ⚠️ designer-required / requires escalation
+- 🔍 manual test required (matches `self-review-guide.md` convention)
+
+#### 10.3 Per-item ask: concrete question + proposed default
+
+For human-pile items, **don't ask "what do you want to do with X?"**. Instead: state the concrete decision needed, propose your default, and ask for go/no-go.
+
+Bad: "H4 is `#001F40 → "default"` — what do you want to do?"
+Good: "H4: keep `default` (closest pragmatic, designer flag in PR description), or remap to `link`? Recommendation: keep + flag. ¿OK?"
+
+This converts every item into a yes/no/quick-tweak interaction — minimal latency, minimal context-switching for the user.
+
+#### 10.4 Hard constraints in delegated agent prompts
+
+When the user gives a pragmatic rule ("use closest semantic token", "no touchear keys"), encode it as a **hard constraint** in the agent prompt with explicit examples of what NOT to do. Especially for JSX/TS where the type system is loose:
+
+```
+Hard constraint: The new `color=` value MUST be one of: `"default" | "muted" | "link" | "secondary" | ...`.
+NO raw hex, NO arbitrary Tailwind classes (`text-[#...]`), NO invented values.
+JSX silently passes invalid color values without TS catching them.
+```
+
+Without the explicit constraint, agents will helpfully invent a passable className (`"text-[#0A1433]"`) that breaks the type contract silently. Spell it out.
+
+#### 10.5 Track progress incrementally in `<TICKET>.md`
+
+After each batch of fixes lands (or a decision is closed without code), append to `docs/tickets/<TICKET>/<TICKET>.md`:
+
+- ✅ table mapping `H1, H3, H5, H7, H8 → commit hashes`
+- ✅ closed-without-fix decisions with rationale (`H2: verified clean by Phase 2, mitigated transitively by H1`)
+- ⏳ pending items still on the human pile
+
+The user writes the PR description from this file — keep it as the single source of truth for "what landed in this branch and why". Update it in the same turn the fix lands, not at the end of the session.
+
+#### 10.6 Concurrency-safe commit dispatch
+
+When dispatching multiple parallel fix-agents that each edit different files:
+
+1. Tell each agent to commit its own work (per the existing "Sub-agents auto-commit, never push" rule)
+2. **But sandbox blocks `git add`/`git commit` in subagents** (see Troubleshooting: "Subagent sandbox") — agents will report `Permission to use Bash has been denied` and ask the parent to commit
+3. Parent picks up each agent's edits as they finish and commits them — but **commit one file at a time**, because pre-commit hooks (lint/format) may auto-format adjacent in-flight files staged by other agents and bundle them into the wrong commit
+4. After committing, verify with `git log -1 --stat` that only the intended file is in the commit. If a stray file got swept in, that's evidence two agents had overlapping output windows — reorder commits with `git rebase -i` if it matters for PR clarity
+
+Common failure: parallel agents A and B both finish; you `git add` A's file, lefthook prettier runs and reformats B's in-flight edit, the commit captures both. Mitigation: dispatch agents in waves of 2-3 max, or commit each agent's output before launching the next wave.
+
 ## Notes
 
 - **Always pause before Step 3.** The user explicitly wants to approve dimensions and weights before any code is generated. Never skip Step 2's loop.
