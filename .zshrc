@@ -268,7 +268,7 @@ esac
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="$HOME/.config/composer/vendor/bin:$PATH"
 export DOCKER_HOST=unix:///var/run/docker.sock
-alias cursor="/usr/bin/cursor --no-sandbox"
+alias cursor="cursor --no-sandbox"
 
 # Android Studio y React Native configuration
 export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
