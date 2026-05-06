@@ -104,6 +104,20 @@ Write `docs/tickets/<TICKET>/self-review-guide.md` — a richer companion to the
 
 **Generation can be delegated to a Sonnet subagent.** Pass it: `docs/tickets/<TICKET>/review-metadata.json`, the pre-fetched diffs in `/tmp/diffs/`, the dimensions from Step 2, and the manual-test rule table below.
 
+**Scale rule — batch when score ≥ 7 yields > 12 files.** A single agent generating 30+ annotated file blocks frequently hits the API's ~10 min stream-idle timeout (model accumulates context, re-reads diffs, and stalls mid-generation). Instead:
+
+- Split files into batches of **6-8 each**, group by score-desc so each batch is roughly homogeneous
+- Dispatch **N parallel Sonnet agents in background** (one per batch) — each writes its slice to `/tmp/guide-batch-<N>.md`
+- The parent context handles **Section 1** (generic patterns from dimensions) and **Section 3** (cross-file clusters from metadata) — these don't need per-file iteration, so do them inline
+- Concatenate at the end: `cat header.md /tmp/guide-batch-*.md section3.md > docs/tickets/<TICKET>/self-review-guide.md`
+
+**Per-batch prompt budget rules** (keeps each agent fast and timeout-resistant):
+
+- Hard cap **30 lines per file block**
+- "Don't quote diffs in output — point at line refs only" (e.g. "L34: Pane wraps Paragraph; ellipsis on inner `<p>` ✓")
+- Pre-extract metadata fields (path, score, A/B/C/D, flags, diff path) into the prompt as a bullet list — the agent shouldn't re-derive them from JSON
+- Tell the agent its scope is exactly N files and the output goes to one file — no header, no Section 1/3
+
 #### Three sections
 
 **Section 1 — Common bug patterns (generic, derived from dimensions)**
@@ -248,6 +262,17 @@ When delegating fixes to sub-agents, occasionally Edit and Bash are blocked even
 - For yadm-tracked files at `~/.agents/skills/<name>/SKILL.md`: delegation often fails. Fall back to applying the edit in the main parent context, then commit/push via yadm yourself.
 
 If an agent fails on Bash for a yadm command in particular, do not retry — just do it inline.
+
+### Step 6 self-review-guide — single-agent timeout
+
+A single Sonnet subagent asked to generate the entire self-review guide for **30+ files** will frequently hit the API's `Stream idle timeout - partial response received` error (~10 min idle limit). Symptoms: agent runs for 100+ minutes with dozens of `Read` tool calls (one per diff), accumulates context, and silently stalls mid-generation. The output file may not be written at all, or the file shown is from a previous skill run (wrong timestamp — verify with `ls -la`).
+
+**Fix**: always batch. Per Step 6 "Scale rule — batch when score ≥ 7 yields > 12 files":
+- Split into 6-8 file batches → N parallel Sonnet agents → each writes `/tmp/guide-batch-<N>.md`
+- Parent context handles Section 1 (patterns) and Section 3 (clusters) inline
+- Concatenate at the end
+
+A 31-file run that timed out as one agent completed cleanly in <2 min as 4 parallel batches of 8/8/8/7 files. The fan-out also dramatically reduces tail latency vs serial generation.
 
 ### Don't trust intermediate output while the script iterates
 
