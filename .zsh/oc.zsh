@@ -1,12 +1,16 @@
+_oc_path_prefix() {
+  print -r -- "$HOME/.bun/bin:$HOME/.local/kitty.app/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.config/composer/vendor/bin:$HOME/.local/share/pnpm:$HOME/.console-ninja/.bin:$HOME/.asdf/shims:/home/linuxbrew/.linuxbrew/opt/asdf/libexec/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$HOME/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+}
+
 oc() {
   # Preserve access to user-installed CLIs even when the shell starts with a thin PATH.
-  local PATH="$HOME/.bun/bin:$HOME/.local/kitty.app/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.config/composer/vendor/bin:$HOME/.local/share/pnpm:$HOME/.console-ninja/.bin:$HOME/.asdf/shims:/home/linuxbrew/.linuxbrew/opt/asdf/libexec/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$HOME/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+  local -x PATH="$(_oc_path_prefix):$PATH"
   command opencode "$@"
 }
 
 ocd() {
   # Match the proposed YOLO mode once the installed opencode version supports it.
-  local PATH="$HOME/.bun/bin:$HOME/.local/kitty.app/bin:$HOME/.local/bin:$HOME/.opencode/bin:$HOME/.config/composer/vendor/bin:$HOME/.local/share/pnpm:$HOME/.console-ninja/.bin:$HOME/.asdf/shims:/home/linuxbrew/.linuxbrew/opt/asdf/libexec/bin:/home/linuxbrew/.linuxbrew/bin:/home/linuxbrew/.linuxbrew/sbin:$HOME/.cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+  local -x PATH="$(_oc_path_prefix):$PATH"
   local help_text version
 
   help_text=$(command opencode --help 2>/dev/null)
