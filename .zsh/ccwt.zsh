@@ -26,13 +26,15 @@ _ccwt_state_file() {
 }
 
 _ccwt_save_last() {
-  local PATH="/usr/bin:/bin:$PATH"
-  local path="$1"
-  [[ -z "$path" || ! -d "$path" ]] && return
+  # NOTE: never name a local `path` — in zsh `path` is the array tied to PATH,
+  # so `local path="..."` would silently clobber the search path inside the
+  # function, breaking `mkdir`, `cat`, etc.
+  local wt="$1"
+  [[ -z "$wt" || ! -d "$wt" ]] && return
   local dir
   dir=$(_ccwt_state_dir)
   command mkdir -p "$dir" 2>/dev/null || return
-  print -r -- "$path" > "$(_ccwt_state_file)"
+  print -r -- "$wt" > "$(_ccwt_state_file)"
 }
 
 _ccwt_load_last() {
@@ -42,11 +44,12 @@ _ccwt_load_last() {
 }
 
 # Persist + cd + open a fresh cc session in the worktree.
+# Avoid `local path` — see _ccwt_save_last note (zsh ties path[] to PATH).
 _ccwt_enter() {
-  local path="$1"
-  [[ -d "$path" ]] || { echo "  ✗ no existe: $path"; return 1; }
-  _ccwt_save_last "$path"
-  cd "$path" && cc
+  local wt="$1"
+  [[ -d "$wt" ]] || { echo "  ✗ no existe: $wt"; return 1; }
+  _ccwt_save_last "$wt"
+  cd "$wt" && cc
 }
 
 _ccwt_require_gum() {
@@ -542,20 +545,22 @@ function _ccwt_delete_worktree() {
   # session can drop /usr/bin or /bin, breaking `command awk` / `command rm`.
   local PATH="/usr/bin:/bin:$PATH"
 
+  # NOTE: variable is named `wt` (not `path`) — zsh ties `path[]` to `PATH`,
+  # so `local path=...` would silently overwrite the PATH we just defended.
   local project="$1"
-  local path="$2"
-  local name="${path:t}"
+  local wt="$2"
+  local name="${wt:t}"
 
   echo "  Borrando $name..."
 
   local is_registered
   is_registered=$(command git -C "$project" worktree list --porcelain 2>/dev/null | \
-    command awk -v p="$path" '$1=="worktree" && $2==p {c++} END{print c+0}')
+    command awk -v p="$wt" '$1=="worktree" && $2==p {c++} END{print c+0}')
 
   if (( is_registered > 0 )); then
     local branch
-    branch=$(command git -C "$path" symbolic-ref --short HEAD 2>/dev/null)
-    command git -C "$project" worktree remove --force "$path" 2>/dev/null
+    branch=$(command git -C "$wt" symbolic-ref --short HEAD 2>/dev/null)
+    command git -C "$project" worktree remove --force "$wt" 2>/dev/null
     command git -C "$project" worktree prune 2>/dev/null
     if [[ -n "$branch" && "$branch" == worktree-* ]]; then
       command git -C "$project" branch -D "$branch" 2>/dev/null && echo "    rama $branch borrada"
@@ -564,10 +569,10 @@ function _ccwt_delete_worktree() {
     fi
   else
     echo "    (huérfano — borrando solo el directorio)"
-    command rm -rf "$path"
+    command rm -rf "$wt"
   fi
 
-  local encoded="${path//\//-}"
+  local encoded="${wt//\//-}"
   encoded="${encoded//./-}"
   local claude_project="$HOME/.claude/projects/$encoded"
   if [[ -d "$claude_project" ]]; then
@@ -578,7 +583,7 @@ function _ccwt_delete_worktree() {
   local _CCWT_PROJECT="$project"
   local saved_last state_file
   saved_last=$(_ccwt_load_last)
-  if [[ "$saved_last" == "$path" ]]; then
+  if [[ "$saved_last" == "$wt" ]]; then
     state_file=$(_ccwt_state_file)
     command rm -f "$state_file" 2>/dev/null
   fi
