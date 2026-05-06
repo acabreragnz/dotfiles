@@ -88,15 +88,88 @@ If no target was given, skip this step.
 
 ### Step 5 — Generate self-review checklist
 
-Write `.agents/self-review-list.md`: markdown checklist of every file with score ≥ 4 (the SCAN/REVIEW/DEEP bucket files), sorted by score descending. Each line:
+Write `.agents/self-review-list.md`: markdown checklist of every file with score ≥ 7 (high-priority human review tier — DEEP+top REVIEW), sorted by score descending. Each line:
 
 ```
 - [ ] `<path>` _(score N)_
 ```
 
-Add a header noting total count and the score threshold used.
+Add a header noting total count and the score threshold used. The threshold can be adjusted up or down based on histogram density — the goal is a list the user can realistically self-review in a few hours.
 
-### Step 6 — Phase 2: dispatch review agents
+### Step 6 — Generate self-review guide (rich human-oriented tour)
+
+Write `.agents/self-review-guide.md` — a richer companion to the flat checklist. Generated **before Phase 2 dispatch** so the user can manually review high-risk files in parallel while agents run in background. Overwrite each fresh skill run.
+
+**Generation can be delegated to a Sonnet subagent.** Pass it: `.agents/review-metadata.json`, the pre-fetched diffs in `/tmp/diffs/`, the dimensions from Step 2, and the manual-test rule table below.
+
+#### Three sections
+
+**Section 1 — Common bug patterns (generic, derived from dimensions)**
+
+For each A/B/C/D dimension that has ≥1 hit on the branch, emit a block. Format:
+
+```md
+### <Pattern name> (<dimension flag>)
+- **Symptom**: <what the user sees if the bug is present>
+- **Where**: <path patterns / file types>
+- **Verify**: <DOM-inspector hint / side-by-side compare / error-path trigger>
+```
+
+Concrete example (when A4 + Pane wrapping has hits):
+
+```md
+### Ellipsis broken (A4 + Pane wrapping)
+- **Symptom**: text clips without `…`. Looks like cut text mid-word.
+- **Where**: any column with fixed width + long content (state labels, user names)
+- **Verify**: DOM inspector — `text-overflow: ellipsis` should be on the `<p>`, NOT on the wrapping `<div>`
+```
+
+**Section 2 — Per-file annotated (score ≥ 7, sorted desc)**
+
+For each file in the threshold:
+
+- Triage line: `**Triage**: A=N, B=N, C=N, D=N — flags`
+- Auto-detected diff patterns (ast-grep + regex against the file's diff): structural Pane wraps with line refs, ellipsis triplet movement, color attr token swaps, testid removals, void prefix locations, className spacing changes (with majorScale→Tailwind equivalence check: `majorScale(N) = N*8px = m_-{2N}`), scope-creep markers
+- Self-review checklist: `- [ ] ...` items derived from the patterns
+- Manual-test verdict block
+
+Manual-test verdict — derived from this rule table:
+
+| Pattern | Verdict |
+|---|---|
+| A4 structural in C ≥ 4 | 🔍 REQUIRED |
+| A4 in C 1-3 | 🔍 quick check |
+| A3 color migration | ⚠️ DESIGNER |
+| A2 className in C ≥ 4 | 🔍 spot-check (pixel-equivalence) |
+| A2 in non-critical | ✅ skip (typecheck covers) |
+| A0/A1 mechanical only | ✅ skip |
+| D2 void prefix in money path | 🔍 REQUIRED (verify error path triggers UI) |
+| D4 no Paragraph touch | ✅ skip (scope creep, but no direct UI impact) |
+| Test/story file | ✅ skip |
+
+When the verdict is 🔍, the block must include a "What to look for" sub-section:
+
+- ✅ **OK behavior**: <what should render correctly>
+- 🐛 **Bug behavior**: <symptom of regression>
+- **Edge cases**: zero-state, max content, hover states, etc.
+- **DOM tell**: what to inspect in devtools to confirm
+
+**Section 3 — Cross-file clusters (auto-detected)**
+
+Group files where ≥3 share the same path-prefix AND the same flag set (e.g. all `pages/draws/DrawPaymentPage/*` with `A=4 + D2-void-prefix`). Format:
+
+```md
+## Cluster: <path-prefix> (<count> files, score N-M)
+
+All N files share <flag-signature>.
+
+**Risk concentration**: <why a shared bug pattern affects all of them at once>
+**Verification path**: pick 1 representative for deep verification, spot-check the rest.
+```
+
+**Color migration extra warning** — A3 changes always need designer review, never auto-approved. Specifically: hex → token mappings can lose semantic intent. `theme.colors.blue900` (dark navy emphasis) → `"secondary"` (muted gray) is a known confusion case. Flag every A3 with ⚠️ DESIGNER.
+
+### Step 7 — Phase 2: dispatch review agents
 
 For each bucket, spawn agents in **background** (`run_in_background: true`):
 
@@ -107,9 +180,11 @@ For each bucket, spawn agents in **background** (`run_in_background: true`):
 | REVIEW | N `pr-review-toolkit:code-reviewer` agents, 3-5 files per agent, prompt: focused review against the dimensions from Step 2 |
 | DEEP | 1 `pr-review-toolkit:code-reviewer` agent per file, prompt: detailed review with the file's specific red flags from the triage script |
 
-Each agent is told to return findings in a structured format (file:line / severity / message). Pass the relevant `git diff master...HEAD -- <file>` inline in the prompt — do not let the agent re-fetch it.
+Each agent is told to return findings in a structured format (file:line / severity / message). Pass the relevant `git diff master...HEAD -- <file>` inline in the prompt — do not let the agent re-fetch it (see Troubleshooting: "Phase 2 agents — pre-fetch diff inline").
 
-### Step 7 — Consolidate findings
+For follow-up "fix" agents triggered by Phase 2 findings, the prompt MUST end with: *"After your edit succeeds, stage your changes (`git add <files>`) and create a commit (`git commit -m '<scope>: <one-line summary>'`). Do NOT push."* See Notes: "Sub-agents auto-commit, never push".
+
+### Step 8 — Consolidate findings
 
 When all background agents finish, merge their outputs into `.agents/review-report.md`:
 
@@ -117,7 +192,7 @@ When all background agents finish, merge their outputs into `.agents/review-repo
 - Sort by max severity within file, then by score from triage
 - Each finding: `**file:line** — severity — message`
 
-### Step 8 — Final summary in chat
+### Step 9 — Final summary in chat
 
 Print a compact summary:
 
@@ -126,7 +201,8 @@ Print a compact summary:
    DEEP=<n> · REVIEW=<n> · SCAN=<n> · SKIP=<n>
 
 🚨 Scope creep: <n> files in DEEP don't touch <TARGET> — see review-buckets-deep.txt
-✅ Self-review checklist: .agents/self-review-list.md (<n> files, threshold score ≥ 4)
+✅ Self-review checklist: .agents/self-review-list.md (<n> files, threshold score ≥ 7)
+✍️  Self-review guide: .agents/self-review-guide.md (<n> files annotated, <n> 🔍 manual tests required)
 🤖 Phase 2 review: .agents/review-report.md (<n> findings across <n> files)
 ```
 
@@ -137,6 +213,7 @@ Omit the scope-creep line if Step 4 was skipped or returned zero hits.
 - **Always pause before Step 3.** The user explicitly wants to approve dimensions and weights before any code is generated. Never skip Step 2's loop.
 - **Buckets go in `.agents/`** (project-local, can be committed if useful, gitignored otherwise). Script goes in `/tmp/` (one-shot, not reusable across branches because dimensions differ).
 - **Phase 2 runs in background.** Continue conversation while agents work; results come in via completion notifications.
+- **Sub-agents auto-commit, never push.** Every fix or follow-up agent prompt MUST instruct the agent to stage its changes (`git add <files>`) and commit with a `<scope>: <one-line summary>` message after the edit succeeds. **Never push** — pushing requires explicit per-action user approval (per CLAUDE.md "Sistemas externos — autorización explícita"). This gives the user intermediate diff/revert checkpoints without external-system side effects. Recommended commit-message scopes: `fix(<area>):`, `chore(triage):`, `feat(<area>):`.
 
 ## Troubleshooting
 
@@ -157,6 +234,18 @@ If you see v2 producing wildly inflated A=4 counts (110+ structural detections),
 ### Phase 2 agents — pre-fetch diff inline, never let them call `git diff`
 
 `pr-review-toolkit:code-reviewer` agents launched with just a file path and an instruction "run `git diff master...HEAD -- <file>`" will sometimes return false "OK" / "no diff" results — the sub-shell appears to misfire and the agent reports a clean file when it isn't. **Always pre-fetch the diff in the parent and embed it inline in the agent prompt** (under a clearly delimited `DIFF:` heading). Verify by re-running `git diff master...HEAD --stat -- <path>` yourself for any "OK" finding on a file you suspected had changes — if `--stat` shows non-zero LOC, the agent failed and you must re-dispatch with the diff embedded.
+
+### Sub-agents may have Edit/Bash silently denied for paths outside the worktree
+
+When delegating fixes to sub-agents, occasionally Edit and Bash are blocked even though the agent definition says they're available — typically for paths outside the parent's working directory (e.g. `~/.agents/`, `~/.zsh/`, `~/scripts/`). Symptoms: the agent reports "Edit/Bash denied" or returns instructions for the user to apply manually instead of doing the work.
+
+**Workaround:**
+- Use `subagent_type: general-purpose` (it has `Tools: *`)
+- Do NOT pass `isolation: "worktree"`
+- In the prompt explicitly tell the agent: "Use Read, Edit, Bash directly — these tools are available in your context"
+- For yadm-tracked files at `~/.agents/skills/<name>/SKILL.md`: delegation often fails. Fall back to applying the edit in the main parent context, then commit/push via yadm yourself.
+
+If an agent fails on Bash for a yadm command in particular, do not retry — just do it inline.
 
 ### Don't trust intermediate output while the script iterates
 
