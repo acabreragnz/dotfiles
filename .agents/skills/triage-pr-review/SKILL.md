@@ -52,7 +52,7 @@ Also propose bucket thresholds (e.g. `0 → SKIP, 1-2 → SCAN, 3-5 → REVIEW, 
 
 ### Step 3 — Generate one-shot triage script
 
-Write `/tmp/triage-<branch-slug>.py` with everything embedded (no imports from `.agents/`). **Delegate this step to a Sonnet subagent** (`Agent` with `subagent_type: general-purpose`, `model: sonnet`) — the script is mechanical and the parent context shouldn't burn tokens on it.
+Write `/tmp/triage-<branch-slug>.py` with everything embedded (no imports from `docs/`). **Delegate this step to a Sonnet subagent** (`Agent` with `subagent_type: general-purpose`, `model: sonnet`) — the script is mechanical and the parent context shouldn't burn tokens on it.
 
 The script must use a **hybrid approach**: ast-grep for structural detections, regex on diff hunks for line-based metrics.
 
@@ -78,7 +78,9 @@ For these, regex on `git diff master...HEAD -- <file>` is fine:
 
 #### Outputs
 
-`.agents/review-buckets-{deep,review,scan,skip}.txt` (one path per line) and `.agents/review-triage-summary.txt` (counts + score histogram + top-30 table with score breakdown per file). Run from repo root: `python3 /tmp/triage-<branch-slug>.py`.
+`docs/tickets/<TICKET>-review-buckets-{deep,review,scan,skip}.txt` (one path per line) and `docs/tickets/<TICKET>-review-triage-summary.txt` (counts + score histogram + top-30 table with score breakdown per file). Run from repo root: `python3 /tmp/triage-<branch-slug>.py`.
+
+**Resolve `<TICKET>`** from `docs/tickets/CURRENT.md` (read the first line — `# ENG-NNNN: ...`). Fallback to the current branch name's `ENG-NNNN` token if CURRENT.md is missing or stale.
 
 ### Step 4 — Sanity check for scope creep
 
@@ -88,7 +90,7 @@ If no target was given, skip this step.
 
 ### Step 5 — Generate self-review checklist
 
-Write `.agents/self-review-list.md`: markdown checklist of every file with score ≥ 7 (high-priority human review tier — DEEP+top REVIEW), sorted by score descending. Each line:
+Write `docs/tickets/<TICKET>-self-review-list.md`: markdown checklist of every file with score ≥ 7 (high-priority human review tier — DEEP+top REVIEW), sorted by score descending. Each line:
 
 ```
 - [ ] `<path>` _(score N)_
@@ -98,9 +100,9 @@ Add a header noting total count and the score threshold used. The threshold can 
 
 ### Step 6 — Generate self-review guide (rich human-oriented tour)
 
-Write `.agents/self-review-guide.md` — a richer companion to the flat checklist. Generated **before Phase 2 dispatch** so the user can manually review high-risk files in parallel while agents run in background. Overwrite each fresh skill run.
+Write `docs/tickets/<TICKET>-self-review-guide.md` — a richer companion to the flat checklist. Generated **before Phase 2 dispatch** so the user can manually review high-risk files in parallel while agents run in background. Overwrite each fresh skill run.
 
-**Generation can be delegated to a Sonnet subagent.** Pass it: `.agents/review-metadata.json`, the pre-fetched diffs in `/tmp/diffs/`, the dimensions from Step 2, and the manual-test rule table below.
+**Generation can be delegated to a Sonnet subagent.** Pass it: `docs/tickets/<TICKET>-review-metadata.json`, the pre-fetched diffs in `/tmp/diffs/`, the dimensions from Step 2, and the manual-test rule table below.
 
 #### Three sections
 
@@ -186,7 +188,7 @@ For follow-up "fix" agents triggered by Phase 2 findings, the prompt MUST end wi
 
 ### Step 8 — Consolidate findings
 
-When all background agents finish, merge their outputs into `.agents/review-report.md`:
+When all background agents finish, merge their outputs into `docs/tickets/<TICKET>-review-report.md`:
 
 - Group by file path
 - Sort by max severity within file, then by score from triage
@@ -201,9 +203,9 @@ Print a compact summary:
    DEEP=<n> · REVIEW=<n> · SCAN=<n> · SKIP=<n>
 
 🚨 Scope creep: <n> files in DEEP don't touch <TARGET> — see review-buckets-deep.txt
-✅ Self-review checklist: .agents/self-review-list.md (<n> files, threshold score ≥ 7)
-✍️  Self-review guide: .agents/self-review-guide.md (<n> files annotated, <n> 🔍 manual tests required)
-🤖 Phase 2 review: .agents/review-report.md (<n> findings across <n> files)
+✅ Self-review checklist: docs/tickets/<TICKET>-self-review-list.md (<n> files, threshold score ≥ 7)
+✍️  Self-review guide: docs/tickets/<TICKET>-self-review-guide.md (<n> files annotated, <n> 🔍 manual tests required)
+🤖 Phase 2 review: docs/tickets/<TICKET>-review-report.md (<n> findings across <n> files)
 ```
 
 Omit the scope-creep line if Step 4 was skipped or returned zero hits.
@@ -211,7 +213,7 @@ Omit the scope-creep line if Step 4 was skipped or returned zero hits.
 ## Notes
 
 - **Always pause before Step 3.** The user explicitly wants to approve dimensions and weights before any code is generated. Never skip Step 2's loop.
-- **Buckets go in `.agents/`** (project-local, can be committed if useful, gitignored otherwise). Script goes in `/tmp/` (one-shot, not reusable across branches because dimensions differ).
+- **All artifacts go in `docs/tickets/<TICKET>-*`** (matches the project's ticket convention; tracked in git as part of the PR). Script goes in `/tmp/` (one-shot, not reusable across branches because dimensions differ). Resolve `<TICKET>` from `docs/tickets/CURRENT.md` (first line `# ENG-NNNN: ...`) or branch name fallback.
 - **Phase 2 runs in background.** Continue conversation while agents work; results come in via completion notifications.
 - **Sub-agents auto-commit, never push.** Every fix or follow-up agent prompt MUST instruct the agent to stage its changes (`git add <files>`) and commit with a `<scope>: <one-line summary>` message after the edit succeeds. **Never push** — pushing requires explicit per-action user approval (per CLAUDE.md "Sistemas externos — autorización explícita"). This gives the user intermediate diff/revert checkpoints without external-system side effects. Recommended commit-message scopes: `fix(<area>):`, `chore(triage):`, `feat(<area>):`.
 
@@ -249,4 +251,4 @@ If an agent fails on Bash for a yadm command in particular, do not retry — jus
 
 ### Don't trust intermediate output while the script iterates
 
-The Sonnet subagent may rewrite and re-run the script several times. Do not read `.agents/review-triage-summary.txt` for final counts until the agent reports completion — intermediate runs (especially before bugs like the snapshot-extension issue are caught) can produce drastically wrong bucket distributions.
+The Sonnet subagent may rewrite and re-run the script several times. Do not read `docs/tickets/<TICKET>-review-triage-summary.txt` for final counts until the agent reports completion — intermediate runs (especially before bugs like the snapshot-extension issue are caught) can produce drastically wrong bucket distributions.
