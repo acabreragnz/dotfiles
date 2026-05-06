@@ -127,6 +127,10 @@ Write `docs/tickets/<TICKET>/self-review-guide.md` — a richer companion to the
 
 **Section 1 — Common bug patterns (generic, derived from dimensions)**
 
+**Ground every pattern in actual hits from `review-metadata.json`.** A pattern with 0 hits on this branch should NOT appear, no matter how generic-sounding. Especially: do not list hex→token mappings the branch never touched (e.g. don't mention `#05407f → "link"` in Section 1 if no diff drops `#05407f`). Pre-existing MEMORY.md rules are background context for the writer, not boilerplate to copy in. The reviewer is reading this to focus their eyes on *this branch's* risks, not learn the project's design system.
+
+**Header summary counts come from actual batch outputs, not from the rule table.** After all batches return, grep `**Manual test**:` lines across `_scratch/guide-batch-*.md` and tally — Sonnet may legitimately downgrade a file to ✅ skip when the diff turns out to be lower-risk than the rule predicted (or vice versa). Pre-computing counts from the verdict-rule table and pasting them in the header *before* batches return produces drift (one file off and the header lies). Compute the header AFTER concatenating Section 2.
+
 For each A/B/C/D dimension that has ≥1 hit on the branch, emit a block. Format:
 
 ```md
