@@ -121,9 +121,8 @@ alias ccq='cc -p --effort low'
 
 
 ### OpenCode CLI aliases
-alias oc="opencode"
-alias ocr="opencode run"
-alias occ="opencode --continue"
+alias ocr="oc run"
+alias occ="oc --continue"
 
 # alias npm=pnpm
 alias pn=pnpm
