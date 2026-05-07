@@ -333,7 +333,7 @@ function _ccwt_go() {
   done
 
   local selected
-  local -a _filter_args=(--no-strict --header="Ir a un worktree — filtrá, elegí o tipeá libre" --height=20)
+  local -a _filter_args=(--header="Ir a un worktree — filtrá y Enter elige la 1ra coincidencia" --height=20)
   [[ -n "$_prefill" ]] && _filter_args+=(--value "$_prefill")
   selected=$(printf "%s\n" "${labels[@]}" | gum filter "${_filter_args[@]}") || { echo "  Cancelado."; return 1; }
 
