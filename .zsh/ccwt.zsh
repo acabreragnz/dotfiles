@@ -175,6 +175,20 @@ function ccwt() {
     return
   fi
 
+  # First-key shortcut: typing a letter jumps straight to _ccwt_go with that
+  # letter pre-loaded in the filter. Enter/arrows fall through to the menu.
+  local _first_key
+  print -n "  ¿Qué querés hacer? [Enter=menú · escribí para buscar worktree] "
+  read -sk1 _first_key
+  print ""
+  if [[ "$_first_key" == $'\e' ]]; then
+    # Drain any pending escape sequence bytes (arrow keys, etc.) before menu.
+    while read -sk1 -t 0.01 _ 2>/dev/null; do :; done
+  elif [[ -n "$_first_key" && "$_first_key" != $'\n' && "$_first_key" != $'\r' ]]; then
+    _ccwt_go "$_first_key"
+    return
+  fi
+
   local -a _menu_opts=()
   local _last_wt
   _last_wt=$(_ccwt_load_last)
@@ -258,6 +272,7 @@ _ccwt_dispatch_arg() {
 # ── Unified go: pick worktree, branch, or create new ─────────────
 
 function _ccwt_go() {
+  local _prefill="$1"
   _ccwt_build_branch_map
 
   local default_branch
@@ -313,7 +328,9 @@ function _ccwt_go() {
   done
 
   local selected
-  selected=$(printf "%s\n" "${labels[@]}" | gum filter --no-strict --header="Ir a un worktree — filtrá, elegí o tipeá libre" --height=20) || { echo "  Cancelado."; return 1; }
+  local -a _filter_args=(--no-strict --header="Ir a un worktree — filtrá, elegí o tipeá libre" --height=20)
+  [[ -n "$_prefill" ]] && _filter_args+=(--value "$_prefill")
+  selected=$(printf "%s\n" "${labels[@]}" | gum filter "${_filter_args[@]}") || { echo "  Cancelado."; return 1; }
 
   local action="${label_to_action[$selected]}"
   local type="${action%%:*}"
