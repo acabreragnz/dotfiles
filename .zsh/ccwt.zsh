@@ -175,20 +175,6 @@ function ccwt() {
     return
   fi
 
-  # First-key shortcut: typing a letter jumps straight to _ccwt_go with that
-  # letter pre-loaded in the filter. Enter/arrows fall through to the menu.
-  local _first_key
-  print -n "  ¿Qué querés hacer? [Enter=menú · escribí para buscar worktree] "
-  read -sk1 _first_key
-  print ""
-  if [[ "$_first_key" == $'\e' ]]; then
-    # Drain any pending escape sequence bytes (arrow keys, etc.) before menu.
-    while read -sk1 -t 0.01 _ 2>/dev/null; do :; done
-  elif [[ -n "$_first_key" && "$_first_key" != $'\n' && "$_first_key" != $'\r' ]]; then
-    _ccwt_go "$_first_key"
-    return
-  fi
-
   local -a _menu_opts=()
   local _last_wt
   _last_wt=$(_ccwt_load_last)
@@ -201,6 +187,25 @@ function ccwt() {
     "💣  Borrar TODOS los worktrees"
     "📋  Listar worktrees"
   )
+
+  # Show menu options up-front so the user can see them while we wait on the
+  # first key. Typing a letter skips the menu and jumps to the worktree picker
+  # with that letter pre-loaded; Enter/arrows fall through to gum choose.
+  print "  ¿Qué querés hacer?"
+  for opt in "${_menu_opts[@]}"; do
+    print "    $opt"
+  done
+  print ""
+  local _first_key
+  print -n "  [Enter/↑↓ = menú · letra = buscar worktree] "
+  read -sk1 _first_key
+  print ""
+  if [[ "$_first_key" == $'\e' ]]; then
+    while read -sk1 -t 0.01 _ 2>/dev/null; do :; done
+  elif [[ -n "$_first_key" && "$_first_key" != $'\n' && "$_first_key" != $'\r' ]]; then
+    _ccwt_go "$_first_key"
+    return
+  fi
 
   local action
   action=$(printf "%s\n" "${_menu_opts[@]}" | gum choose --header="¿Qué querés hacer?") || { echo "  Cancelado."; return 1; }
