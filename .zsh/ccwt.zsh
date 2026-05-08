@@ -263,32 +263,8 @@ _ccwt_dispatch_arg() {
     return
   fi
 
-  _ccwt_build_branch_map
-
-  # 2. Existing worktree by directory name
-  local worktrees_dir="$_CCWT_PROJECT/.claude/worktrees"
-  if [[ -d "$worktrees_dir/$arg" ]]; then
-    echo "  → abriendo worktree existente: $arg"
-    _ccwt_enter "$worktrees_dir/$arg"
-    return
-  fi
-
-  # 3. Existing branch (local or origin)
-  if command git -C "$_CCWT_PROJECT" rev-parse --verify --quiet "refs/heads/$arg" >/dev/null 2>&1 \
-     || command git -C "$_CCWT_PROJECT" ls-remote --exit-code --heads origin "$arg" >/dev/null 2>&1; then
-    _ccwt_open_branch "$arg"
-    return
-  fi
-
-  # 4. Fallback: offer to create new scratch from default branch
-  local default_branch
-  default_branch=$(_ccwt_default_branch)
-  echo "  ℹ '$arg' no existe como worktree, rama (local u origin), ni PR."
-  if gum confirm "¿Crear worktree nuevo '$arg' desde origin/$default_branch?"; then
-    _ccwt_create_new "$arg"
-  else
-    echo "  Cancelado."
-  fi
+  # Everything else: open the interactive picker with arg as pre-fill
+  _ccwt_go "$arg"
 }
 
 # ── Unified go: pick worktree, branch, or create new ─────────────
