@@ -90,9 +90,20 @@ Compose the Evidence section and run `gh pr edit <n> --body …`:
 - **≤ 4 screenshots**: embed each inline with a short label.
 - **≥ 5 screenshots**: wrap the entire grid in a single `<details><summary>Show N screenshots</summary>…</details>` (the section heading stays outside).
 
+#### When to pair vs. when to use a single image
+
+**Only pair two images when the comparison is apples-to-apples — i.e. the two screenshots differ in exactly the variable the reviewer is evaluating** (e.g. fix vs. no-fix at the same commit/component, FF on vs. off in the same view). If the second image varies in any other dimension (different component, different commit base, different state) on top of the variable being demonstrated, the pair is misleading and the "after" muddles the claim.
+
+**A single image is the right answer when:**
+- The claim is purely existential: "this state existed at commit X" (one capture is the proof).
+- The "after" image would be identical to one already shown elsewhere in the body — duplicating it adds noise without information.
+- The two captures differ in more than one variable (e.g. comparing legacy component pre-fix to refreshed component post-fix mixes "fix applied" with "component changed").
+
+When in doubt, ask: "what does the right-hand image prove that the left-hand image doesn't already prove on its own?" If the answer is "nothing" or "it duplicates evidence shown elsewhere", drop the pair and use a single image with a clear caption.
+
 #### Side-by-side comparisons (before/after, master/branch, FF off/on)
 
-When two screenshots are paired (visual diff), use an HTML `<table>` so the images render next to each other instead of stacked vertically. GitHub renders raw HTML inside markdown bodies, so this works without escapes. Always use this pattern — never stack paired captures top-to-bottom; reviewers shouldn't have to scroll between them.
+When two screenshots are genuinely paired (apples-to-apples visual diff per the rule above), use an HTML `<table>` so the images render next to each other instead of stacked vertically. GitHub renders raw HTML inside markdown bodies, so this works without escapes. Always use this pattern for valid pairs — never stack paired captures top-to-bottom; reviewers shouldn't have to scroll between them.
 
 ```html
 <table>
