@@ -45,11 +45,17 @@ _ccwt_load_last() {
 
 # Persist + cd + open a fresh cc session in the worktree.
 # Avoid `local path` — see _ccwt_save_last note (zsh ties path[] to PATH).
+# Optional second arg: initial prompt to pass to cc (e.g. "/ticket ENG-4802").
 _ccwt_enter() {
   local wt="$1"
+  local initial_prompt="${2:-}"
   [[ -d "$wt" ]] || { echo "  ✗ no existe: $wt"; return 1; }
   _ccwt_save_last "$wt"
-  cd "$wt" && cc
+  if [[ -n "$initial_prompt" ]]; then
+    cd "$wt" && cc "$initial_prompt"
+  else
+    cd "$wt" && cc
+  fi
 }
 
 _ccwt_require_gum() {
@@ -116,8 +122,10 @@ _ccwt_format_worktree_label() {
 
 # Shared: given a branch name, ensure it exists locally (auto-fetch from origin) and
 # either resume its existing worktree or create a new one.
+# Optional second arg: initial prompt forwarded to cc (e.g. "/ticket ENG-4802").
 _ccwt_open_branch() {
   local branch="$1"
+  local initial_prompt="${2:-}"
   [[ -z "$branch" ]] && { echo "  ✗ rama vacía"; return 1; }
 
   if ! command git -C "$_CCWT_PROJECT" rev-parse --verify --quiet "refs/heads/$branch" >/dev/null 2>&1; then
@@ -139,7 +147,7 @@ _ccwt_open_branch() {
     local existing="${_ccwt_branch_to_wt[$branch]}"
     echo ""
     echo "  → worktree ya existe, abriendo ${existing:t} (sesión nueva)"
-    _ccwt_enter "$existing"
+    _ccwt_enter "$existing" "$initial_prompt"
     return
   fi
 
@@ -151,7 +159,9 @@ _ccwt_open_branch() {
   echo "  → creando worktree desde rama: $branch"
   [[ "$wt_name" != "$branch" ]] && echo "  → nombre worktree: $wt_name"
   local wt_path="$_CCWT_PROJECT/.claude/worktrees/$wt_name"
-  cd "$_CCWT_PROJECT" && cc --worktree "$wt_name"
+  local -a _cc_args=(--worktree "$wt_name")
+  [[ -n "$initial_prompt" ]] && _cc_args+=("$initial_prompt")
+  cd "$_CCWT_PROJECT" && cc "${_cc_args[@]}"
   if [[ -d "$wt_path" ]]; then
     _ccwt_save_last "$wt_path"
     cd "$wt_path"
@@ -240,7 +250,14 @@ _ccwt_dispatch_arg() {
     return
   fi
 
-  # 1. PR number or GitHub PR URL
+  # 1. Linear ticket URL
+  if [[ "$arg" =~ ^https://linear\.app/[^/]+/issue/([A-Za-z]+-[0-9]+) ]]; then
+    local ticket_id="${${match[1]}:u}"
+    _ccwt_resolve_linear "$ticket_id" "$arg"
+    return
+  fi
+
+  # 2. PR number or GitHub PR URL
   if [[ "$arg" =~ ^[0-9]+$ || "$arg" == https://github.com/*/pull/* ]]; then
     _ccwt_resolve_pr "$arg"
     return
@@ -461,6 +478,53 @@ function _ccwt_resolve_pr() {
   echo "  → rama: $branch"
 
   _ccwt_open_branch "$branch"
+}
+
+# Resolve a Linear ticket URL/ID to its branch and open/create the worktree,
+# then start cc with /ticket <url> as the initial prompt.
+function _ccwt_resolve_linear() {
+  local ticket_id="$1"  # e.g. ENG-4802
+  local ticket_url="$2" # full Linear URL
+
+  echo "  → Linear ticket: $ticket_id"
+
+  # Search local branches first, then remote
+  local branch
+  branch=$(command git -C "$_CCWT_PROJECT" branch --format='%(refname:short)' 2>/dev/null | \
+    command grep -i "$ticket_id" | head -1)
+
+  if [[ -z "$branch" ]]; then
+    branch=$(command git -C "$_CCWT_PROJECT" branch -r --format='%(refname:short)' 2>/dev/null | \
+      command grep -i "$ticket_id" | command sed 's|^origin/||' | head -1)
+  fi
+
+  local initial_prompt="/ticket $ticket_url"
+
+  if [[ -n "$branch" ]]; then
+    echo "  → branch found: $branch"
+    _ccwt_open_branch "$branch" "$initial_prompt"
+    return
+  fi
+
+  # No branch yet — create scratch worktree named after the ticket ID
+  local ticket_lower="${ticket_id:l}"
+  local worktrees_dir="$_CCWT_PROJECT/.claude/worktrees"
+  local wt_path="$worktrees_dir/$ticket_lower"
+
+  if [[ -d "$wt_path" ]]; then
+    echo "  → resuming existing worktree: $ticket_lower"
+    _ccwt_enter "$wt_path" "$initial_prompt"
+    return
+  fi
+
+  local default_branch
+  default_branch=$(_ccwt_default_branch)
+  echo "  → no branch found, creating scratch worktree from origin/$default_branch: $ticket_lower"
+  cd "$_CCWT_PROJECT" && cc --worktree "$ticket_lower" "$initial_prompt"
+  if [[ -d "$wt_path" ]]; then
+    _ccwt_save_last "$wt_path"
+    cd "$wt_path"
+  fi
 }
 
 # Free-text branch-name input (for remote-only branches not shown in the picker).
