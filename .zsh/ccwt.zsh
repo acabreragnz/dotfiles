@@ -474,11 +474,15 @@ function _ccwt_resolve_linear() {
       command grep -i "$ticket_id" | command sed 's|^origin/||' | head -1)
   fi
 
-  local initial_prompt="/ticket $ticket_url"
-
   if [[ -n "$branch" ]]; then
     echo "  → branch found: $branch"
-    _ccwt_open_branch "$branch" "$initial_prompt"
+    # Only run /ticket on first entry (no existing worktree yet)
+    _ccwt_build_branch_map
+    if [[ -n "${_ccwt_branch_to_wt[$branch]}" ]]; then
+      _ccwt_open_branch "$branch"
+    else
+      _ccwt_open_branch "$branch" "/ticket $ticket_url"
+    fi
     return
   fi
 
@@ -489,7 +493,7 @@ function _ccwt_resolve_linear() {
 
   if [[ -d "$wt_path" ]]; then
     echo "  → resuming existing worktree: $ticket_lower"
-    _ccwt_enter "$wt_path" "$initial_prompt"
+    _ccwt_enter "$wt_path"
     return
   fi
 
