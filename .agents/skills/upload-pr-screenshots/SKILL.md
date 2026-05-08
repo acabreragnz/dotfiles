@@ -16,6 +16,8 @@ The technique exploits two facts:
 - PR URL or number.
 - One or more absolute paths to local image files.
 
+> **Screenshot path convention:** always save captures to `docs/tickets/<TICKET>/screenshots/` (not `/tmp`). Read `docs/tickets/CURRENT.md` to get the ticket ID if not already known. The directory already exists for active tickets; create it if missing. `/tmp` files are lost between sessions.
+
 ## Steps
 
 ### Step 1 — Open the PR conversation page
@@ -87,6 +89,26 @@ Compose the Evidence section and run `gh pr edit <n> --body …`:
 
 - **≤ 4 screenshots**: embed each inline with a short label.
 - **≥ 5 screenshots**: wrap the entire grid in a single `<details><summary>Show N screenshots</summary>…</details>` (the section heading stays outside).
+
+#### Side-by-side comparisons (before/after, master/branch, FF off/on)
+
+When two screenshots are paired (visual diff), use an HTML `<table>` so the images render next to each other instead of stacked vertically. GitHub renders raw HTML inside markdown bodies, so this works without escapes. Always use this pattern — never stack paired captures top-to-bottom; reviewers shouldn't have to scroll between them.
+
+```html
+<table>
+<tr><th>master</th><th>this branch</th></tr>
+<tr>
+<td><img width="..." height="..." alt="<view> — master" src="https://github.com/user-attachments/assets/<id-master>" /></td>
+<td><img width="..." height="..." alt="<view> — this branch" src="https://github.com/user-attachments/assets/<id-branch>" /></td>
+</tr>
+</table>
+```
+
+Rules:
+- Header row labels are required and short — `master` / `this branch`, `before` / `after`, `FF off` / `FF on`. The labels make the diff scannable; reviewers don't have to read alt text.
+- One short prose line above each table summarising the difference (or stating "render unchanged" when the table is sanity-check evidence with no expected diff).
+- Apply the same format consistently across **every** paired set in one PR. If the main Before/After is in a side-by-side table, every adjacent-panel "no regression" comparison must also use the table — do not mix stacked and side-by-side in the same PR body.
+- For trios (e.g. before / annotated / after) keep the single-row table and add a third `<th>`/`<td>` pair.
 
 ## Rules
 
