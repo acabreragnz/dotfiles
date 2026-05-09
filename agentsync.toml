@@ -1,0 +1,73 @@
+# AgentSync Configuration — global (~)
+# Source of truth: ~/AGENTS.md y ~/.agents/skills/
+
+source_dir = "."
+
+[gitignore]
+enabled = false  # dotfiles trackeados con yadm
+
+# -----------------------------------------------------------------------------
+# Claude Code
+# -----------------------------------------------------------------------------
+[agents.claude]
+enabled = true
+description = "Claude Code"
+
+[agents.claude.targets.instructions]
+source = "AGENTS.md"
+destination = ".claude/CLAUDE.md"
+type = "symlink"
+
+[agents.claude.targets.skills]
+source = ".agents/skills"
+destination = ".claude/skills"
+type = "symlink-contents"
+
+# -----------------------------------------------------------------------------
+# OpenCode
+# -----------------------------------------------------------------------------
+[agents.opencode]
+enabled = true
+description = "OpenCode"
+
+[agents.opencode.targets.instructions]
+source = "AGENTS.md"
+destination = ".opencode/AGENTS.md"
+type = "symlink"
+
+[agents.opencode.targets.skills]
+source = ".agents/skills"
+destination = ".opencode/skills"
+type = "symlink-contents"
+
+# -----------------------------------------------------------------------------
+# OpenAI Codex CLI
+# -----------------------------------------------------------------------------
+[agents.codex]
+enabled = true
+description = "OpenAI Codex CLI"
+
+[agents.codex.targets.instructions]
+source = "AGENTS.md"
+destination = ".codex/AGENTS.md"
+type = "symlink"
+
+[agents.codex.targets.skills]
+source = ".agents/skills"
+destination = ".codex/skills"
+type = "symlink-contents"
+
+# -----------------------------------------------------------------------------
+# Otros agents — disabled
+# -----------------------------------------------------------------------------
+[agents.copilot]
+enabled = false
+
+[agents.cursor]
+enabled = false
+
+[agents.gemini]
+enabled = false
+
+[agents.root]
+enabled = false
