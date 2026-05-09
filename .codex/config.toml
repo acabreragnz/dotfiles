@@ -17,6 +17,9 @@ url = "https://mcp.clickup.com/mcp"
 [mcp_servers.exa]
 url = "https://mcp.exa.ai/mcp"
 
+[mcp_servers.figma]
+url = "https://mcp.figma.com/mcp"
+
 [mcp_servers.react-aria]
 args = [
     "-y",
