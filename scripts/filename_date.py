@@ -4,16 +4,12 @@ Si la fecha del nombre es anterior al mtime, se asume que el mtime fue
 modificado (ej. copia reciente de foto antigua) y se usa la del nombre.
 """
 
-from __future__ import annotations
-
-import os
 import re
-import time
 from datetime import datetime
 from pathlib import Path
 
 _DATE_RE = re.compile(
-    r"(?<!\d)(19\d{2}|20\d{2}|21\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])(?!\d)"
+    r"(?<!\d)(19\d{2}|20\d{2})[-_.]?(0[1-9]|1[0-2])[-_.]?(0[1-9]|[12]\d|3[01])(?!\d)"
 )
 _TIME_RE = re.compile(r"(?<!\d)([01]\d|2[0-3])[-_.:]?([0-5]\d)[-_.:]?([0-5]\d)(?!\d)")
 
@@ -28,10 +24,9 @@ def date_from_filename(name: str) -> float | None:
         dt = datetime(year, month, day, 12, 0, 0)
     except ValueError:
         return None
-    if dt.timestamp() > time.time() + 86400:
+    if dt.timestamp() > datetime.now().timestamp() + 86400:
         return None
 
-    # Buscar hora después de la fecha para mayor precisión
     tail = name[m.end():]
     tm = _TIME_RE.search(tail)
     if tm:
@@ -46,11 +41,10 @@ def date_from_filename(name: str) -> float | None:
     return dt.timestamp()
 
 
-def effective_mtime(path: str | os.PathLike) -> float:
+def effective_mtime(path: Path) -> float:
     """mtime del archivo, o la fecha del nombre si esta última es anterior."""
-    p = Path(path)
-    mtime = p.stat().st_mtime
-    fn_date = date_from_filename(p.name)
+    mtime = path.stat().st_mtime
+    fn_date = date_from_filename(path.name)
     if fn_date is not None and fn_date < mtime:
         return fn_date
     return mtime
