@@ -6,6 +6,9 @@ source_dir = "."
 [gitignore]
 enabled = false  # dotfiles trackeados con yadm
 
+# MCPs gestionados en config separado para no contaminar Claude/OpenCode
+# Ver: ~/.codex/agentsync-mcp.toml + correr `agentsync apply --config ~/.codex/agentsync-mcp.toml --agents codex`
+
 # -----------------------------------------------------------------------------
 # Claude Code
 # -----------------------------------------------------------------------------

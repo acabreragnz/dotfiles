@@ -1,0 +1,52 @@
+model = "gpt-5.5"
+model_reasoning_effort = "medium"
+
+[mcp_servers.chrome-devtools]
+args = [
+    "-y",
+    "chrome-devtools-mcp@latest",
+    "--autoConnect",
+    "--experimental-page-id-routing",
+    "--experimentalScreencast",
+]
+command = "npx"
+
+[mcp_servers.clickup]
+url = "https://mcp.clickup.com/mcp"
+
+[mcp_servers.exa]
+url = "https://mcp.exa.ai/mcp"
+
+[mcp_servers.react-aria]
+args = [
+    "-y",
+    "@react-aria/mcp@latest",
+]
+command = "npx"
+
+[notice.model_migrations]
+"gpt-5.3-codex" = "gpt-5.4"
+
+[plugins."github@openai-curated"]
+enabled = true
+
+[plugins."gmail@openai-curated"]
+enabled = true
+
+[plugins."google-calendar@openai-curated"]
+enabled = true
+
+[plugins."google-drive@openai-curated"]
+enabled = true
+
+[projects."/home/tcabrera"]
+trust_level = "trusted"
+
+[projects."/home/tcabrera/personal/obsidian/second-brain"]
+trust_level = "trusted"
+
+[projects."/home/tcabrera/personal/ticketo"]
+trust_level = "trusted"
+
+[tui.model_availability_nux]
+"gpt-5.5" = 4

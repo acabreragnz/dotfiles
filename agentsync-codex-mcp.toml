@@ -1,0 +1,56 @@
+# AgentSync MCP-only config para Codex
+# Centraliza los MCPs que están en Claude (chrome-devtools, react-aria, exa, clickup)
+# para que también queden disponibles en Codex CLI.
+#
+# Apply: agentsync apply --config ~/.codex/agentsync-mcp.toml --agents codex
+#
+# Estrategia: merge → preserva los plugins de OpenAI (gmail, calendar, drive, github)
+# y todos los demás campos del config.toml.
+
+source_dir = "."
+
+[gitignore]
+enabled = false
+
+[mcp]
+enabled = true
+merge_strategy = "merge"
+
+[mcp_servers.exa]
+type = "http"
+url = "https://mcp.exa.ai/mcp"
+
+[mcp_servers.clickup]
+type = "http"
+url = "https://mcp.clickup.com/mcp"
+
+[mcp_servers.chrome-devtools]
+command = "npx"
+args = ["-y", "chrome-devtools-mcp@latest", "--autoConnect", "--experimental-page-id-routing", "--experimentalScreencast"]
+
+[mcp_servers.react-aria]
+command = "npx"
+args = ["-y", "@react-aria/mcp@latest"]
+
+# Solo Codex enabled — los otros agents NO reciben configs
+[agents.codex]
+enabled = true
+description = "OpenAI Codex CLI"
+
+[agents.claude]
+enabled = false
+
+[agents.opencode]
+enabled = false
+
+[agents.copilot]
+enabled = false
+
+[agents.cursor]
+enabled = false
+
+[agents.gemini]
+enabled = false
+
+[agents.root]
+enabled = false
