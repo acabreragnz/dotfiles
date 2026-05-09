@@ -66,7 +66,7 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 
 **Never report success without observable evidence.**
 
-- Before reporting done: list each change made, then show one verification per change.
+- After applying changes, report each one as: `1. [change] → [command run] → [output]`. No summary bullets.
 - "It should work" is not done. "I ran it and got X" is done.
 - If you can't test it (no display, no device, external dependency), say so explicitly — don't invent the "✓".
 - For scripts: run with a real input, check output with `ls`/`file`/`ffprobe` or equivalent.
