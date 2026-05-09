@@ -60,6 +60,16 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
+## 5. Verify Before Claiming Done
+
+**Never report success without observable evidence.**
+
+- Run the thing. Show the output.
+- "It should work" is not done. "I ran it and got X" is done.
+- If you can't test it (no display, no device, external dependency), say so explicitly — don't invent the "✓".
+- For scripts: run with a real input, check output with `ls`/`file`/`ffprobe` or equivalent.
+- For UI changes: open the browser, exercise the golden path.
+
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
