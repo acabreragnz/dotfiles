@@ -1,32 +1,11 @@
 ---
 name: agentsync
 description: Use when configurando, ejecutando o debugging agentsync — agregar/renombrar skills, sincronizar configs entre Claude/OpenCode/Codex, editar agentsync.toml, verificar symlinks, agregar MCP servers o agregar un tool nuevo al setup. También usar después de crear/renombrar/borrar un skill para correr `apply` automáticamente.
-argument-hint: 'subcomando: apply | status | doctor | apply-vault | apply-codex-mcp | clean (vacío = status global por defecto)'
 ---
 
 # AgentSync
 
 CLI Rust que sincroniza configs de AI agents (instructions, skills, MCPs) via symlinks. Source of truth en `.agents/` + `AGENTS.md`. Repo: https://github.com/dallay/agentsync
-
-## Ejecución on-demand
-
-Si recibís un argumento, ejecutar el comando correspondiente directamente. Si no hay argumento, mostrar `agentsync status` global como default.
-
-| Argumento | Comando a ejecutar | Cuándo |
-|-----------|--------------------|--------|
-| (vacío) o `status` | `cd ~ && agentsync status` | Default — ver estado global |
-| `apply` | `cd ~ && agentsync apply` | Tras crear/renombrar/borrar skill global o editar `~/agentsync.toml` |
-| `doctor` | `cd ~ && agentsync doctor` | Health check completo |
-| `apply-vault` | `cd ~/personal/obsidian/second-brain && agentsync apply` | Tras cambios en skills del vault Obsidian |
-| `apply-codex-mcp` | `agentsync apply --config ~/agentsync-codex-mcp.toml --agents codex` | Tras editar el toml de MCPs de Codex |
-| `clean` | `cd ~ && agentsync apply --dry-run` primero, **pedir confirmación**, luego `agentsync clean` | Rollback total — destructivo |
-| `apply-all` | Correr en secuencia: global, vault, codex-mcp | Reaplicar todo |
-
-**Reglas de ejecución:**
-- Antes de `apply` con cambios sustanciales en el toml → correr `--dry-run` primero y mostrar el plan al usuario.
-- Antes de `clean` → confirmar SIEMPRE (es destructivo).
-- Después de cualquier `apply`, correr `status` y reportar el resultado al usuario.
-- Si `apply` falla → correr `doctor` automáticamente para diagnosticar.
 
 ## Filosofía
 
