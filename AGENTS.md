@@ -2,6 +2,8 @@
 
 Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
 
+> **Meta:** This top section is high-signal and hard-won. Only modify it when a rule demonstrably fails in practice — with evidence. Keep the style: short, imperative, no fluff. Project-specific and tool-specific instructions go below the `---` separator.
+
 **Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
 
 ## 1. Think Before Coding
