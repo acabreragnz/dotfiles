@@ -256,16 +256,12 @@ Leer ese archivo **antes de responder** cualquier pregunta que requiera datos de
 
 # Mejora Proactiva de Skills
 
-Durante la ejecución de un skill, si ocurre un error, bloqueo o comportamiento no cubierto:
-- **No interrumpir el flujo** — anotar internamente el problema y continuar.
-- Al finalizar el objetivo principal → reportar los errores encontrados y proponer actualizaciones a los skills afectados.
-- Esperar aprobación del usuario antes de editar cualquier skill.
+Durante la ejecución de un skill, distinguir dos tipos de problemas:
 
-Al finalizar **todas las tareas pendientes** de una interacción que involucró un skill, si ocurrió:
-- Un "no happy path" (error, bloqueo, reintento inesperado)
-- Una corrección o queja del usuario
-- Un comportamiento nuevo no cubierto por el skill
+- **Ambigüedad de requerimiento** (no sé qué quiere el usuario) → parar y preguntar, igual que en cualquier tarea.
+- **Error técnico de ejecución** (tool falló, comportamiento no cubierto, reintento inesperado) → anotar internamente y continuar sin interrumpir. Reportar al finalizar el objetivo principal.
 
-→ Proponer al usuario las mejoras identificadas (qué skill actualizar y por qué) antes de cerrar.
+Al finalizar **todas las tareas pendientes** de una interacción que involucró un skill, si ocurrió un error técnico, bloqueo, corrección del usuario, o comportamiento no cubierto:
+→ Proponer las mejoras identificadas (qué skill actualizar y por qué) antes de cerrar.
 → Si confirma → aplicar los cambios inmediatamente.
 → Actualizar el skill más específico afectado. Destino: sección `## Troubleshooting` (crearla si no existe).
