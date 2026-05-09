@@ -1,3 +1,71 @@
+# CLAUDE.md
+
+Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-specific instructions as needed.
+
+**Tradeoff:** These guidelines bias toward caution over speed. For trivial tasks, use judgment.
+
+## 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+## 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+## 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+## 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+---
+
 # Datos Personales
 
 Datos completos en: `~/personal/obsidian/second-brain/3 - Resources/Personal/Datos personales.md`
@@ -34,6 +102,7 @@ Leer ese archivo **antes de responder** cualquier pregunta que requiera datos de
 - **Búsqueda web:** priorizar siempre `mcp__exa__web_search_exa` sobre `WebSearch`. Usar WebSearch solo si Exa no está disponible.
 - **Impresora:** Brother DCP-165C configurada via CUPS. Imprimir: `lp -d DCP165C "/path/to/archivo.pdf"`. Verificar estado: `lpstat -p`. **Siempre leer el PDF antes de imprimir** — puede ser el archivo equivocado o tener restricciones (ej: firma electrónica que pierde validez al imprimir).
 - **Imágenes descargadas — NO leer sin verificar:** nunca usar la herramienta Read sobre un archivo `.png` (u otra imagen) descargado por Claude sin verificar primero que realmente es una imagen (`file <path>`). Hay un bug de Claude Code que causa loop infinito al intentar leer un archivo que no es imagen real.
+- **Capturas / evidencia de tickets — guardarlas en el directorio del ticket, no en `/tmp`:** todas las capturas (screenshots de QA, evidencia para PRs/Slack/diseño) van a la carpeta del ticket en curso (ej: `docs/tickets/<TICKET-ID>/` del repo activo). **Why:** las capturas que terminan en `/tmp` se pierden cuando se reinicia, no se versionan, y no quedan asociadas al contexto del ticket; ya pasó que tuve que recapturar porque las dejé en `/tmp` y desaparecieron entre sesiones. **How to apply:** `/tmp` solo para capturas descartables / probes intermedios que sé que no van a uso firme. Si la captura va a Jordan, a un PR, a Slack, o a la PR description → al directorio del ticket directamente desde el primer save.
 - **Template de descripciones de tareas Todoist:** todo skill o flujo que cree o edite tareas debe seguir `.claude/task-description-template.md` del vault Obsidian (`~/personal/obsidian/second-brain/.claude/task-description-template.md`). Leer ese archivo antes de escribir cualquier descripción.
 - **Cloudflare Quick Tunnel para dev servers:** cuando el usuario pida exponer un `localhost:PORT` (Vite, Storybook, Next dev, etc.), usar siempre `cloudflared tunnel --url http://localhost:PORT --http-host-header localhost:PORT`. El flag `--http-host-header` es **obligatorio** porque Vite/Storybook bloquean hosts no listados en `allowedHosts` y devuelven `403 Invalid host` sin él. Correr en background, esperar ~8s y extraer la URL con `grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com'` del output.
 - **Comandos con `sudo` (bloqueados por hook):** cuando necesito que el usuario corra uno o más comandos con `sudo`, si es **un solo comando corto** pegarlo inline en el chat; si son **varios comandos o un flujo** (ej: agregar repo + `apt update` + `apt install`), generar un script en `/tmp/<nombre>.sh` con `set -euo pipefail` y pedirle al usuario `! bash /tmp/<nombre>.sh`. Mismo patrón que `/tmp/gws-login.sh` para re-auth de gws. **Why:** el hook `pre-tool-guard.sh` bloquea cualquier `sudo` que yo ejecute — el `!` prefix en el prompt corre el comando en la sesión y la salida me vuelve directo, sin que el usuario tenga que pegar output.
@@ -80,6 +149,7 @@ Leer ese archivo **antes de responder** cualquier pregunta que requiera datos de
 - **Ser proactivo**: usar subagentes para tareas pesadas (exploración, reviews, análisis) — ahorra tokens en el contexto principal y permite prompts especializados.
 - **Paralelizar**: si hay tareas independientes, lanzar múltiples subagentes en un solo mensaje.
 - **Ante la duda, preguntar**: si no es claro si foreground o background, preguntarle al usuario.
+- **Siempre `mode: "bypassPermissions"`**: pasar este mode en todos los lanzamientos de agentes para que tengan acceso a Read/Bash/Write sin bloqueos. **Why:** sin él los subagentes fallan silenciosamente al intentar leer archivos, lo que es peor que no lanzarlos. **How to apply:** sin excepciones — es el default correcto para todos los Agent tool calls.
 
 # Estilo de Interacción
 
