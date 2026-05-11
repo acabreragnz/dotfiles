@@ -48,16 +48,15 @@ _ccwt_load_last() {
 # Persist + cd + open a fresh cc session in the worktree.
 # Avoid `local path` — see _ccwt_save_last note (zsh ties path[] to PATH).
 # Optional second arg: initial prompt to pass to cc (e.g. "/ticket ENG-4802").
+# Reads _CCWT_CC_FLAGS (set by ccwt() from leading --model/--effort flags).
 _ccwt_enter() {
   local wt="$1"
   local initial_prompt="${2:-}"
   [[ -d "$wt" ]] || { echo "  ✗ no existe: $wt"; return 1; }
   _ccwt_save_last "$wt"
-  if [[ -n "$initial_prompt" ]]; then
-    cd "$wt" && cc "$initial_prompt"
-  else
-    cd "$wt" && cc
-  fi
+  local -a cc_args=("${_CCWT_CC_FLAGS[@]}")
+  [[ -n "$initial_prompt" ]] && cc_args+=("$initial_prompt")
+  cd "$wt" && cc "${cc_args[@]}"
 }
 
 _ccwt_require_gum() {
@@ -161,7 +160,7 @@ _ccwt_open_branch() {
   echo "  → creando worktree desde rama: $branch"
   [[ "$wt_name" != "$branch" ]] && echo "  → nombre worktree: $wt_name"
   local wt_path="$_CCWT_PROJECT/.claude/worktrees/$wt_name"
-  local -a _cc_args=(--worktree "$wt_name")
+  local -a _cc_args=("${_CCWT_CC_FLAGS[@]}" --worktree "$wt_name")
   [[ -n "$initial_prompt" ]] && _cc_args+=("$initial_prompt")
   cd "$_CCWT_PROJECT" && cc "${_cc_args[@]}"
   if [[ -d "$wt_path" ]]; then
@@ -180,6 +179,22 @@ function ccwt() {
     echo "  📁 Proyecto: ${_CCWT_PROJECT:t}  ($_CCWT_PROJECT)"
     echo ""
   fi
+
+  # Parse leading flags meant for cc (e.g. --model sonnet --effort high).
+  # Empty values are dropped so a Warp tab config with empty defaults still works.
+  typeset -ga _CCWT_CC_FLAGS
+  _CCWT_CC_FLAGS=()
+  while [[ "$1" == --* ]]; do
+    case "$1" in
+      --model|--effort)
+        [[ -n "$2" ]] && _CCWT_CC_FLAGS+=("$1" "$2")
+        shift 2
+        ;;
+      *)
+        break
+        ;;
+    esac
+  done
 
   # Shortcut: ccwt <arg> [prompt] skips the menu. Optional prompt is forwarded to cc.
   if [[ $# -gt 0 ]]; then
@@ -441,7 +456,7 @@ function _ccwt_create_new() {
   echo ""
   echo "  → nuevo worktree desde origin/$default_branch: $wt_name"
   local wt_path="$worktrees_dir/$wt_name"
-  cd "$_CCWT_PROJECT" && cc --worktree "$wt_name"
+  cd "$_CCWT_PROJECT" && cc "${_CCWT_CC_FLAGS[@]}" --worktree "$wt_name"
   if [[ -d "$wt_path" ]]; then
     _ccwt_save_last "$wt_path"
     cd "$wt_path"
@@ -519,7 +534,7 @@ function _ccwt_resolve_linear() {
   local default_branch
   default_branch=$(_ccwt_default_branch)
   echo "  → no branch found, creating scratch worktree from origin/$default_branch: $ticket_lower"
-  cd "$_CCWT_PROJECT" && cc --worktree "$ticket_lower" "$initial_prompt"
+  cd "$_CCWT_PROJECT" && cc "${_CCWT_CC_FLAGS[@]}" --worktree "$ticket_lower" "$initial_prompt"
   if [[ -d "$wt_path" ]]; then
     _ccwt_save_last "$wt_path"
     cd "$wt_path"
