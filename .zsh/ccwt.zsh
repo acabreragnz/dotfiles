@@ -263,6 +263,21 @@ _ccwt_dispatch_arg() {
     return
   fi
 
+  # 3. Existing worktree by name (exact match on directory basename)
+  local _worktrees_dir="$_CCWT_PROJECT/.claude/worktrees"
+  if [[ -d "$_worktrees_dir/$arg" ]]; then
+    echo "  → worktree existente: $arg (sesión nueva)"
+    _ccwt_enter "$_worktrees_dir/$arg"
+    return
+  fi
+
+  # 4. Existing local or remote branch → open/create worktree directly
+  if command git -C "$_CCWT_PROJECT" rev-parse --verify --quiet "refs/heads/$arg" >/dev/null 2>&1 \
+     || command git -C "$_CCWT_PROJECT" ls-remote --exit-code --heads origin "$arg" >/dev/null 2>&1; then
+    _ccwt_open_branch "$arg"
+    return
+  fi
+
   # Everything else: open the interactive picker with arg as pre-fill
   _ccwt_go "$arg"
 }
