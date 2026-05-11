@@ -28,15 +28,13 @@ Extract from the user's request (ask only what's missing):
 1. **Agent**: cc | opencode | codex
 2. **Worktree** or branch name (or absolute dir if not a worktree)
 3. **Prompt** (the initial message — may be a path like "Lee handoff.md y …")
-4. **Model + effort** (optional; only ask if the user already mentioned overriding defaults)
+4. **Model + effort**: **default to `--model sonnet --effort high` for `cc`**, always. Only override if the user explicitly says otherwise (e.g. "usá opus", "con effort max", "sonnet medium"). Do not ask — just pass `--model sonnet --effort high` unless the user named another combination. The parent agent's current model is irrelevant; never inherit it.
 
 Do not invent model names. If the user says "GPT-5" or similar shorthand, run `opencode models` (for opencode) or check `~/.codex/config.toml` (for codex) to map to a real id.
 
-### Step 2 — Ask surface: tab vs pane
+### Step 2 — Surface: split-right by default
 
-Always ask before launching:
-
-> ¿Tab nueva o split en la tab actual? (split: derecha / abajo)
+**Always split-right in the current Warp window. Do not ask.** Only deviate if the user explicitly says "tab nueva" / "abajo" / "split down" in the original request.
 
 ### Step 3 — Build the command string
 
@@ -80,3 +78,5 @@ After launching, ask whether the agent started correctly. If it didn't (focus is
 - **Pane focus race**: the new split needs ~1.5 s before it accepts keystrokes. Using `sleep 1` causes the first chars to land in the wrong pane.
 - **Always `cd <abs-dir> && ` for opencode/codex**, even on pane splits. The split inherits the parent cwd, but if the user invokes the skill from a tab that isn't already in the worktree (or asks for a brand-new tab), relative paths in the prompt fail silently.
 - **Opencode model providers**: `opencode models` lists both `github-copilot/*` and `openai/*` for the same model id. Default to `openai/*` unless the user explicitly says otherwise — github-copilot routing has caused confusion.
+- **Codex + asdf node version mismatch**: `codex` is installed under a specific node version (npm-global). When `cd`-ing into a project whose `.tool-versions` pins a different node, the asdf shim resolves to the project's node and `codex` is missing. Symptom: `codex: command not found` or "no version is set" error. Workaround: prefix with `ASDF_NODEJS_VERSION=<installed-version> codex …`. To find the right version: `for v in ~/.asdf/installs/nodejs/*/bin/codex; do echo "$v"; done`. Permanent fix (do not run without user consent): `npm i -g @openai/codex` under the project's pinned node version.
+- **Long prompts → write to a file, don't type them inline**: if the prompt has more than ~1 line, or contains backticks, double quotes, dollar signs, or any markdown formatting, `Write` it to `/tmp/<task>-prompt.txt` and have xdotool type `cc --model M --effort E "$(cat /tmp/<task>-prompt.txt)"` (or `ccwt …` variant). Inline typing forces double-layer escaping (shell + xdotool keystroke timing) that silently mangles backticks and quotes, even with `--delay 60`. The `$(cat …)` substitution runs once in the target pane's shell and preserves the file content as a single argument — no escape gymnastics. Only inline short prompts (1 sentence, no special chars).
