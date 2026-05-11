@@ -2,13 +2,15 @@
 # Auto-detects project from pwd (falls back to default). Requires: gum, git, gh (for PR flow).
 #
 # Usage:
-#   ccwt                → 4-option menu (go, delete, delete-all, list)
-#   ccwt <arg>          → skip menu; <arg> resolves to:
-#                            pure digits  → PR number
-#                            https://…/pull/N → PR URL
-#                            existing worktree name → open it
-#                            existing branch (local or origin) → open/create worktree
-#                            anything else → offer to create scratch from default branch
+#   ccwt                  → 4-option menu (go, delete, delete-all, list)
+#   ccwt <arg>            → skip menu; <arg> resolves to:
+#                              pure digits  → PR number
+#                              https://…/pull/N → PR URL
+#                              existing worktree name → open it
+#                              existing branch (local or origin) → open/create worktree
+#                              anything else → offer to create scratch from default branch
+#   ccwt <arg> "<prompt>" → same as above, then sends "<prompt>" as the initial cc input
+#                              (e.g. ccwt my-branch "/foo args" or ccwt - "Lee handoff.md")
 
 _CCWT_PROJECT_DEFAULT="$HOME/dev/rabbet/lift"
 _CCWT_PROJECT=""  # resolved on each ccwt() invocation
@@ -179,9 +181,9 @@ function ccwt() {
     echo ""
   fi
 
-  # Shortcut: ccwt <arg> skips the menu.
+  # Shortcut: ccwt <arg> [prompt] skips the menu. Optional prompt is forwarded to cc.
   if [[ $# -gt 0 ]]; then
-    _ccwt_dispatch_arg "$1"
+    _ccwt_dispatch_arg "$1" "$2"
     return
   fi
 
@@ -235,6 +237,7 @@ _ccwt_dispatch_arg() {
   local arg="$1"
   arg="${arg#"${arg%%[![:space:]]*}"}"
   arg="${arg%"${arg##*[![:space:]]}"}"
+  local initial_prompt="${2:-}"
   [[ -z "$arg" ]] && { echo "  ✗ arg vacío"; return 1; }
 
   # 0. `ccwt -` → resume last worktree for this project
@@ -246,7 +249,7 @@ _ccwt_dispatch_arg() {
       return 1
     fi
     echo "  → último worktree: ${last:t} (sesión nueva)"
-    _ccwt_enter "$last"
+    _ccwt_enter "$last" "$initial_prompt"
     return
   fi
 
@@ -267,7 +270,7 @@ _ccwt_dispatch_arg() {
   local _worktrees_dir="$_CCWT_PROJECT/.claude/worktrees"
   if [[ -d "$_worktrees_dir/$arg" ]]; then
     echo "  → worktree existente: $arg (sesión nueva)"
-    _ccwt_enter "$_worktrees_dir/$arg"
+    _ccwt_enter "$_worktrees_dir/$arg" "$initial_prompt"
     return
   fi
 
@@ -275,7 +278,7 @@ _ccwt_dispatch_arg() {
   # Uses cached refs (refs/remotes/origin/) — no network call; _ccwt_open_branch fetches if needed.
   if command git -C "$_CCWT_PROJECT" rev-parse --verify --quiet "refs/heads/$arg" >/dev/null 2>&1 \
      || command git -C "$_CCWT_PROJECT" rev-parse --verify --quiet "refs/remotes/origin/$arg" >/dev/null 2>&1; then
-    _ccwt_open_branch "$arg"
+    _ccwt_open_branch "$arg" "$initial_prompt"
     return
   fi
 
