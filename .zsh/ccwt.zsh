@@ -271,9 +271,10 @@ _ccwt_dispatch_arg() {
     return
   fi
 
-  # 4. Existing local or remote branch → open/create worktree directly
+  # 4. Existing local or already-fetched remote branch → open/create worktree directly.
+  # Uses cached refs (refs/remotes/origin/) — no network call; _ccwt_open_branch fetches if needed.
   if command git -C "$_CCWT_PROJECT" rev-parse --verify --quiet "refs/heads/$arg" >/dev/null 2>&1 \
-     || command git -C "$_CCWT_PROJECT" ls-remote --exit-code --heads origin "$arg" >/dev/null 2>&1; then
+     || command git -C "$_CCWT_PROJECT" rev-parse --verify --quiet "refs/remotes/origin/$arg" >/dev/null 2>&1; then
     _ccwt_open_branch "$arg"
     return
   fi
