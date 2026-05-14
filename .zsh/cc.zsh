@@ -13,6 +13,12 @@ ca() {
   command claude agents "$@"
 }
 
+# Background agent con bypass permissions
+cabg() {
+  local -x PATH="$(_cc_path_prefix):$PATH"
+  command claude --bg --permission-mode bypassPermissions "$@"
+}
+
 ccf() {
   local -x PATH="$(_cc_path_prefix):$PATH"
   command claude --dangerously-skip-permissions --model sonnet "$@"
