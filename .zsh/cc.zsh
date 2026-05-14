@@ -8,6 +8,11 @@ cc() {
   command claude --dangerously-skip-permissions "$@"
 }
 
+ca() {
+  local -x PATH="$(_cc_path_prefix):$PATH"
+  command claude agents "$@"
+}
+
 ccf() {
   local -x PATH="$(_cc_path_prefix):$PATH"
   command claude --dangerously-skip-permissions --model sonnet "$@"
