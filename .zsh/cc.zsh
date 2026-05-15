@@ -8,7 +8,7 @@ cc() {
   command claude --dangerously-skip-permissions "$@"
 }
 
-ca() {
+cca() {
   local -x PATH="$(_cc_path_prefix):$PATH"
   command claude agents --dangerously-skip-permissions --model sonnet --effort high "$@"
 }
