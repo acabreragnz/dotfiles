@@ -10,7 +10,7 @@ cc() {
 
 ca() {
   local -x PATH="$(_cc_path_prefix):$PATH"
-  command claude agents "$@"
+  command claude agents --dangerously-skip-permissions --model sonnet --effort high "$@"
 }
 
 # Background agent con bypass permissions
