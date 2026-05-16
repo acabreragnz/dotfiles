@@ -221,6 +221,10 @@ Leer ese archivo **antes de responder** cualquier pregunta que requiera datos de
 - **NUNCA inventes o asumas** información técnica sin verificar primero.
 - Usa WebSearch para obtener información de 2026, no de tu conocimiento de 2025.
 
+# Tests
+
+- **Bloques `// Arrange` / `// Act` / `// Assert` en cada test** — separar las tres fases con comentarios explícitos. Aplica a todo lenguaje y framework (Vitest, Jest, Playwright, pytest, RSpec, etc.). **Why:** estructura visible para escanear rápido qué setup, qué se ejecuta y qué se afirma; evita tests donde las tres fases se mezclan y son ilegibles. **How to apply:** sin excepciones — si una fase es trivial o vacía (p.ej. Arrange ya hecho en `beforeEach`), igual dejar el comentario con una línea aclaratoria.
+
 # Git
 
 - **Restaurar un archivo a versión de master: `git restore --source=origin/master -- <file>`** — nunca `git checkout`, que está bloqueado por el hook de permisos (se interpreta como branch switching). **How to apply:** cualquier vez que haya que revertir un archivo puntual a master, usar este comando.
