@@ -221,10 +221,6 @@ Leer ese archivo **antes de responder** cualquier pregunta que requiera datos de
 - **NUNCA inventes o asumas** información técnica sin verificar primero.
 - Usa WebSearch para obtener información de 2026, no de tu conocimiento de 2025.
 
-# Tests
-
-- **Siempre escribir tests en inglés** — `describe`/`it` strings y comentarios. Aplica a todo lenguaje y framework (Vitest, Jest, Playwright, pytest, etc.). Resto del código sigue convenciones del repo. **Why:** los tests sirven como spec ejecutable y los nombres aparecen en CI/PR/output de herramientas; un solo idioma evita ruido. **How to apply:** sin excepciones, incluso si el resto del proyecto usa español.
-
 # Git
 
 - **Restaurar un archivo a versión de master: `git restore --source=origin/master -- <file>`** — nunca `git checkout`, que está bloqueado por el hook de permisos (se interpreta como branch switching). **How to apply:** cualquier vez que haya que revertir un archivo puntual a master, usar este comando.
