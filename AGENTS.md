@@ -223,7 +223,7 @@ Leer ese archivo **antes de responder** cualquier pregunta que requiera datos de
 
 # Tests
 
-- **Bloques `// Arrange` / `// Act` / `// Assert` en cada test** — separar las tres fases con comentarios explícitos. Aplica a todo lenguaje y framework (Vitest, Jest, Playwright, pytest, RSpec, etc.). **Why:** estructura visible para escanear rápido qué setup, qué se ejecuta y qué se afirma; evita tests donde las tres fases se mezclan y son ilegibles. **How to apply:** sin excepciones — si una fase es trivial o vacía (p.ej. Arrange ya hecho en `beforeEach`), igual dejar el comentario con una línea aclaratoria.
+- **Bloques `// Arrange` / `// Act` / `// Assert` en tests unitarios y de componente** — separar las tres fases con comentarios explícitos. Aplica a tests unitarios y de componente (Vitest, Jest, pytest unit, RSpec, etc.). **NO** aplica a E2E (Playwright, Cypress) — esos flujos son inherentemente secuenciales y los comentarios estorbarían. **Why:** estructura visible para escanear rápido qué setup, qué se ejecuta y qué se afirma; evita tests donde las tres fases se mezclan y son ilegibles. **How to apply:** sin excepciones en unit/component — si una fase es trivial o vacía (p.ej. Arrange ya hecho en `beforeEach`), igual dejar el comentario con una línea aclaratoria.
 
 # Git
 
